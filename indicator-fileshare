@@ -1,0 +1,214 @@
+#!/usr/bin/env python
+#
+# Copyright 2012
+#
+# Authors: Denis Kovalev <aikikode@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of either or both of the following licenses:
+#
+# 1) the GNU Lesser General Public License version 3, as published by the
+# Free Software Foundation; and/or
+# 2) the GNU Lesser General Public License version 2.1, as published by
+# the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranties of
+# MERCHANTABILITY, SATISFACTORY QUALITY or FITNESS FOR A PARTICULAR
+# PURPOSE.  See the applicable version of the GNU Lesser General Public
+# License for more details.
+#
+# You should have received a copy of both the GNU Lesser General Public
+# License version 3 and version 2.1 along with this program.  If not, see
+# <http://www.gnu.org/licenses>
+#
+
+import sys, os, shutil, tempfile
+import gtk
+import appindicator
+import threading
+import webbrowser
+import logging, logging.handlers
+import commands
+
+VERSION = "0.1"
+
+class SingleInstance(object):
+    """ Class to ensure, that single instance of the applet is run for each user """
+
+    # Initialize, specifying a path to store pids
+    def __init__(self, pidPath):
+        self.pidPath=pidPath
+        # See if pidFile exists
+        if os.path.exists(pidPath):
+            log.debug("SingleInstance: pid file %s exists" % pidPath)
+            # Make sure it is not a "stale" pidFile
+            pid=open(pidPath, 'r').read().strip()
+            # Check list of running pids, if not running it is stale so overwrite
+            pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
+            log.debug("SingleInstance: pid running %s" % pidRunning)
+            self.lasterror = True if pidRunning else False
+        else:
+            self.lasterror = False
+
+        if not self.lasterror:
+            log.debug("SingleInstance: writing new pid %s" % str(os.getpid()))
+            # Create a temp file, copy it to pidPath and remove temporary file
+            (fp, temp_path)=tempfile.mkstemp()
+            try:
+                os.fdopen(fp, "w+b").write(str(os.getpid()))
+                shutil.copy(temp_path, pidPath)
+                os.unlink(temp_path)
+            except Exception as e:
+                log.error("SingleInstance: exception while renaming '%s' to '%s':\n %s" % (temp_path, pidPath, str(e)))
+
+    def is_already_running(self):
+        return self.lasterror
+
+    def __del__(self):
+        if not self.lasterror:
+            log.debug("SingleInstance: deleting %s" % self.pidPath)
+            os.unlink(self.pidPath)
+
+class indicator_fileshare(threading.Thread):
+    def __init__(self):
+        log.debug("Indicator: creating")
+        threading.Thread.__init__(self)
+        self.ind = appindicator.Indicator("fileshare-services-client",
+            "indicator-fileshare",
+            appindicator.CATEGORY_APPLICATION_STATUS)
+        self.ind.set_status (appindicator.STATUS_ACTIVE)
+        self.ind.set_icon("/usr/local/share/indicator-fileshare/media/app_icon.png")
+        self.file_grabber = FileGrabber()
+        self.create_menu()
+
+    def create_menu(self):
+        self.menu = gtk.Menu()
+        # Create menu items
+        ## Open imgur site
+        buf = "Open Imgur"
+        menu_item_open_site_url = gtk.MenuItem(buf)
+        self.menu.append(menu_item_open_site_url)
+        menu_item_open_site_url.connect("activate", self.open_site, buf)
+        menu_item_open_site_url.show()
+
+        ## Widget for grabbing files
+        grab_files = gtk.MenuItem("Show/hide File Grabber")
+        grab_files.connect("activate", self.toggle_file_grabber)
+        grab_files.show()
+        self.menu.append(grab_files)
+
+        ## Breaker
+        breaker = gtk.SeparatorMenuItem()
+        breaker.show()
+        self.menu.append(breaker)
+
+        ##About
+        about_show = gtk.MenuItem("About...")
+        about_show.connect("activate", self.about)
+        about_show.show()
+        self.menu.append(about_show)
+        ##Quit
+        quit = gtk.ImageMenuItem(gtk.STOCK_QUIT)
+        quit.connect("activate", self.quit)
+        quit.show()
+        self.menu.append(quit)
+
+        # set menu
+        self.ind.set_menu(self.menu)
+        #def create_menu(self)
+
+    def open_site(self, widget, buf):
+        webbrowser.open('https://imgur.com/')
+
+    def toggle_file_grabber(self, widget):
+        self.file_grabber.toggle_window()
+
+    def about(self, widget):
+        log.debug("Indicator: open About dialog")
+        self.about_dialog = gtk.AboutDialog()
+        self.about_dialog.set_name("Fileshare Indicator")
+        self.about_dialog.set_version(VERSION)
+
+        ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
+        self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
+        ifile.close()
+
+        self.about_dialog.set_website("https://github.com/aikikode")
+        logo_path = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
+        self.about_dialog.connect("response", self.about_close)
+        self.about_dialog.show()
+
+    def about_close(self, widget, event=None):
+        log.debug("Indicator: closing About dialog")
+        self.about_dialog.destroy()
+
+    # Quit the applet
+    def quit(self, widget, data=None):
+        log.debug("Indicator: Quitting")
+        gtk.main_quit()
+
+class FileGrabber():
+    def __init__(self):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.set_decorated(False)
+        self.window.set_opacity(0.5)
+
+        # Add main widget for grabbing files
+        self.grab_widget = gtk.Button()
+        self.image = gtk.Image()
+        self.image.set_from_file("/usr/local/share/indicator-fileshare/media/app_icon.png")
+        self.grab_widget.set_image(self.image)
+        self.grab_widget.props.relief = gtk.RELIEF_NONE
+        self.grab_widget.show()
+        self.window.add(self.grab_widget)
+
+        self.isShown = False
+
+    def toggle_window(self):
+        if self.isShown:
+            self.window.hide()
+            self.isShown = False
+        else:
+            self.window.show()
+            self.window.set_keep_above(True)    # This may not work: it depends on the window manager
+            self.isShown = True
+
+
+def main():
+    gtk.main()
+    return 0
+
+if __name__ == "__main__":
+    #Enable and configure logs
+    global log
+    cachedir = os.environ.get('XDG_CACHE_HOME','').strip()
+    if not cachedir:
+        cachedir = os.path.expanduser("~/.cache")
+    log_filename = os.path.join(cachedir, "indicator-fileshare.log")
+    log = logging.getLogger('IndicatorFileshare')
+    log.propagate = False
+    log.setLevel(logging.DEBUG)
+    log_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=1024*1024, backupCount=5)
+    log_formatter = logging.Formatter("[%(threadName)s] %(asctime)s - %(levelname)s - %(message)s")
+    log_handler.setFormatter(log_formatter)
+    log.addHandler(log_handler)
+
+    log.info("------------------------------")
+    log.info("Started Fileshare Indicator")
+    log.info("Fileshare Indicator version %s" % VERSION)
+
+    # Single instance stuff for fileshare indicator
+    myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
+    # check is another instance of same program running
+    if myapp.is_already_running():
+        log.info("Another instance of this program is already running")
+        sys.exit("Another instance of this program is already running")
+    # not running, safe to continue...
+    gtk.gdk.threads_init()
+    gtk.gdk.threads_enter()
+
+    di = indicator_fileshare()
+    main()
+    gtk.gdk.threads_leave()

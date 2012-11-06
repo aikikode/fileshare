@@ -1,0 +1,7 @@
+Section: free
+Priority: extra
+Maintainer: Denis Kovalev <aikikode@gmail.com>
+Package: indicator-fileshare
+Architecture: all
+Description: Droplr applet indicator
+Version: 0.1

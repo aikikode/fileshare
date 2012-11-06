@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Fileshare Applet
+Comment=Indicator applet for file sharing services
+GenericName=Fileshare Applet
+Categories=GNOME;Utility;
+Exec=indicator-fileshare
+Icon=/usr/local/share/indicator-fileshare/media/app_icon.png
+Hidden=False
+X-GNOME-Autostart-enabled=true
+Type=Application

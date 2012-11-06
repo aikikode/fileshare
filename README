@@ -1,0 +1,7 @@
+Fileshare Applet
+================
+Simple and clean Linux toolbar applet for quick image and file sharing through
+popular on-line services.
+
+By now only Imgur (http://imgur.com) is supported.
+Droplr support will be added when they provide API.
