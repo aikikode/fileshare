@@ -30,8 +30,17 @@ import threading
 import webbrowser
 import logging, logging.handlers
 import commands
+# for uploading
+import pycurl
+import base64
+# for parsing server response
+import xml.dom.minidom
+# for delayed actions
+import gobject
 
 VERSION = "0.1"
+ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
+FILE_GRABBER_SIZE=50
 
 class SingleInstance(object):
     """ Class to ensure, that single instance of the applet is run for each user """
@@ -61,6 +70,7 @@ class SingleInstance(object):
                 os.unlink(temp_path)
             except Exception as e:
                 log.error("SingleInstance: exception while renaming '%s' to '%s':\n %s" % (temp_path, pidPath, str(e)))
+    #def __init__(self, pidPath)
 
     def is_already_running(self):
         return self.lasterror
@@ -69,8 +79,10 @@ class SingleInstance(object):
         if not self.lasterror:
             log.debug("SingleInstance: deleting %s" % self.pidPath)
             os.unlink(self.pidPath)
+    #def __del__(self)
+#class SingleInstance(object)
 
-class indicator_fileshare(threading.Thread):
+class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
@@ -108,6 +120,7 @@ class indicator_fileshare(threading.Thread):
         about_show.connect("activate", self.about)
         about_show.show()
         self.menu.append(about_show)
+
         ##Quit
         quit = gtk.ImageMenuItem(gtk.STOCK_QUIT)
         quit.connect("activate", self.quit)
@@ -116,7 +129,7 @@ class indicator_fileshare(threading.Thread):
 
         # set menu
         self.ind.set_menu(self.menu)
-        #def create_menu(self)
+    #def create_menu(self)
 
     def open_site(self, widget, buf):
         webbrowser.open('https://imgur.com/')
@@ -134,11 +147,12 @@ class indicator_fileshare(threading.Thread):
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
-        self.about_dialog.set_website("https://github.com/aikikode")
+        self.about_dialog.set_website("https://github.com/aikikode/fileshare")
         logo_path = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
         self.about_dialog.connect("response", self.about_close)
         self.about_dialog.show()
+    #def about(self, widget)
 
     def about_close(self, widget, event=None):
         log.debug("Indicator: closing About dialog")
@@ -150,20 +164,31 @@ class indicator_fileshare(threading.Thread):
         gtk.main_quit()
 
 class FileGrabber():
+    """ Applet for drag'n'drop files to. The file is automatically uploaded to
+        the hosting and the result URL is copied into the clipboard """
     def __init__(self):
+        self.cb = gtk.Clipboard()
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_decorated(False)
         self.window.set_opacity(0.5)
+        self.window.set_size_request(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE)
+        self.window.set_resizable(False)
+        self.window.drag_dest_set(0, [], 0)
+
+        self.window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
+        width, height = self.window.get_size()
+        self.window.move(gtk.gdk.screen_width() - width - 20, height)
 
         # Add main widget for grabbing files
-        self.grab_widget = gtk.Button()
         self.image = gtk.Image()
-        self.image.set_from_file("/usr/local/share/indicator-fileshare/media/app_icon.png")
-        self.grab_widget.set_image(self.image)
-        self.grab_widget.props.relief = gtk.RELIEF_NONE
-        self.grab_widget.show()
-        self.window.add(self.grab_widget)
-
+        pixbuf = gtk.gdk.pixbuf_new_from_file("/usr/local/share/indicator-fileshare/media/imgur.png")
+        scaled_buf = pixbuf.scale_simple(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE, gtk.gdk.INTERP_BILINEAR)
+        self.image.set_from_pixbuf(scaled_buf)
+        self.image.show()
+        self.window.add(self.image)
+        self.window.connect('drag_motion', self.window_drag_motion)
+        self.window.connect('drag_drop', self.window_drag_drop)
+        self.window.connect('drag_data_received', self.window_drag_data_received)
         self.isShown = False
 
     def toggle_window(self):
@@ -174,6 +199,71 @@ class FileGrabber():
             self.window.show()
             self.window.set_keep_above(True)    # This may not work: it depends on the window manager
             self.isShown = True
+
+    def window_drag_motion(self, wid, context, x, y, time):
+        context.drag_status(gtk.gdk.ACTION_COPY, time)
+        return True      # True means "I accept this data"
+
+    def window_drag_drop(self, wid, context, x, y, time):
+        wid.drag_get_data(context, context.targets[-1], time)
+        return True
+
+    def window_drag_data_received(self, wid, context, x, y, data, info, time):
+        file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
+        context.finish(True, False, time)
+        self.upload(file_to_upload)
+        self.show_result()
+
+    def upload(self, image):
+        log.debug("Uploading file: " + image)
+        self.response = ''
+        self.base64String = self.img2base64(image)
+        self.curl = curl = pycurl.Curl()
+        curl.setopt(pycurl.URL, 'http://api.imgur.com/2/upload.xml')
+        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+        curl.setopt(pycurl.POST, 1)
+        curl.setopt(pycurl.HTTPPOST, [ ('key', ANONYMOUS_API_KEY), ('image', self.base64String) ])
+        curl.setopt(pycurl.WRITEFUNCTION, self.write)
+        self.curl.perform()
+        log.debug("Response: " + self.response)
+        self.dom = xml.dom.minidom.parseString(self.response)
+        return True
+
+    def img2base64(self, image):
+        with open(image, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read())
+        return encoded_string
+
+    def write(self, string):
+        self.response += string
+
+    def show_result(self):
+        links = []
+        for tag in ('original', 'delete_page'):
+            link = self.dom.getElementsByTagName(tag)
+            if link:
+                links.append((tag, link[0].firstChild.nodeValue))
+        print links
+        url = links[0][1]
+        self.cb.set_text(url)
+        self.cb.store()
+        # create a window with result URL
+        result_window = gtk.Window()
+        result_window.set_decorated(False)
+        result_window.set_opacity(0.9)
+        result_window.set_resizable(False)
+        result_window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
+        width, height = result_window.get_size()
+        result_window.move(gtk.gdk.screen_width() - width - 20, height)
+        l = gtk.Label()
+        l.set_text(url + " copied")
+        l.show()
+        result_window.add(l)
+        result_window.show()
+        # close the window with URL in 5 seconds
+        gobject.timeout_add(5000, result_window.hide)
+    #def show_result(self)
+#class FileGrabber()
 
 
 def main():
@@ -209,6 +299,6 @@ if __name__ == "__main__":
     gtk.gdk.threads_init()
     gtk.gdk.threads_enter()
 
-    di = indicator_fileshare()
+    di = IndicatorFileshare()
     main()
     gtk.gdk.threads_leave()
