@@ -4,4 +4,4 @@ Maintainer: Denis Kovalev <aikikode@gmail.com>
 Package: indicator-fileshare
 Architecture: all
 Description: Imgur and Droplr applet indicator
-Version: 0.1
+Version: 0.2
