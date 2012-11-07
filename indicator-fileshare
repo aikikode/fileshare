@@ -31,10 +31,6 @@ import threading
 import webbrowser
 import logging, logging.handlers
 import commands
-# for OAuth
-#from oauth_hook import OAuthHook
-#import requests
-#from urlparse import parse_qs
 # for uploading
 import pycurl
 import base64
@@ -145,18 +141,6 @@ class IndicatorFileshare(threading.Thread):
         breaker.show()
         self.menu.append(breaker)
 
-#        ## Auth or Logout menu
-#        if self.final_token is None:
-#            login = gtk.MenuItem("Login...")
-#            login.connect("activate", self.login)
-#            login.show()
-#            self.menu.append(login)
-#        else:
-#            logout = gtk.MenuItem("Logout...")
-#            logout.connect("activate", self.logout)
-#            logout.show()
-#            self.menu.append(logout)
-
         ##About
         about_show = gtk.MenuItem("About...")
         about_show.connect("activate", self.about)
@@ -240,60 +224,6 @@ class IndicatorFileshare(threading.Thread):
     ##########################################################################
     def toggle_file_grabber(self, widget):
         self.file_grabber.toggle_window()
-
-    ##########################################################################
-    def login(self, widget):
-        # Stage 1
-        imgur_oauth_hook = OAuthHook(consumer_key=CONSUMER_KEY, consumer_secret=CONSUMER_SECRET)
-        response = requests.post('http://api.imgur.com/oauth/request_token', hooks={'pre_request': imgur_oauth_hook})
-        qs = parse_qs(response.text)
-        oauth_token = qs['oauth_token'][0]
-        oauth_secret = qs['oauth_token_secret'][0]
-        # Stage 2
-#        print "Go to http://api.imgur.com/oauth/authorize?oauth_token=%s allow the app and copy your PIN" % oauth_token
-#        oauth_verifier = raw_input('Please enter your PIN:')
-        oauth_verifier = self.get_pin(oauth_token)
-        # Stage 3
-        new_imgur_oauth_hook = OAuthHook(oauth_token, oauth_secret, CONSUMER_KEY, CONSUMER_SECRET)
-        response = requests.post('http://api.imgur.com/oauth/access_token', {'oauth_verifier': oauth_verifier}, hooks={'pre_request': new_imgur_oauth_hook})
-        response = parse_qs(response.content)
-        self.final_token = response['oauth_token'][0]
-        self.final_token_secret = response['oauth_token_secret'][0]
-
-    def responseToDialog(self, entry, dialog, response):
-        dialog.response(response)
-
-    def get_pin(self, oauth_token):
-        #base this on a message dialog
-        dialog = gtk.MessageDialog(
-            None,
-            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-            gtk.MESSAGE_QUESTION,
-            gtk.BUTTONS_OK,
-            None)
-        dialog.set_markup("Go to \"http://api.imgur.com/oauth/authorize?oauth_token=%s\", allow the app and copy your PIN" % oauth_token)
-        webbrowser.open("http://api.imgur.com/oauth/authorize?oauth_token=%s" % oauth_token)
-        #create the text input field
-        entry = gtk.Entry()
-        #allow the user to press enter to do ok
-        entry.connect("activate", self.responseToDialog, dialog, gtk.RESPONSE_OK)
-        #create a horizontal box to pack the entry and a label
-        hbox = gtk.HBox()
-        hbox.pack_start(gtk.Label("Name:"), False, 5, 5)
-        hbox.pack_end(entry)
-        #some secondary text
-        dialog.format_secondary_markup("Please, enter your PIN:")
-        #add it and show it
-        dialog.vbox.pack_end(hbox, True, True, 0)
-        dialog.show_all()
-        #go go go
-        dialog.run()
-        text = entry.get_text()
-        dialog.destroy()
-        return text
-
-    def logout(self, widget):
-        pass
 
     ##########################################################################
     def about(self, widget):
