@@ -212,7 +212,6 @@ class IndicatorFileshare(threading.Thread):
         pixbuf = pixbuf.get_from_drawable(root, root.get_colormap(), x, y, 0, 0, width, height)
         self.gtk_screen_image = pixbuf
         (fp, temp_img_file)=tempfile.mkstemp()
-        print "Tmp file: " + temp_img_file
         self.gtk_screen_image.save(temp_img_file, "png")
         self.file_grabber.upload(temp_img_file)
         os.remove(temp_img_file)
