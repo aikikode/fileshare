@@ -186,7 +186,11 @@ class IndicatorFileshare(threading.Thread):
 
     def select_area_event_handler(self, event, data):
         root, gc = data
-        if event.type == gtk.gdk.MOTION_NOTIFY and self.selectAreaButtonPressed:
+        if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
+            log.debug("screenshot cancelled")
+            gtk.gdk.pointer_ungrab()
+            self.selectAreaButtonPressed = False
+        elif event.type == gtk.gdk.MOTION_NOTIFY and self.selectAreaButtonPressed:
             x, y = int(min(self.selectAreaMouseX, event.x_root)), int(min(self.selectAreaMouseY, event.y_root))
             width, height = int(abs(self.selectAreaMouseX - event.x_root)), int(abs(self.selectAreaMouseY - event.y_root))
             root.draw_rectangle(gc, False, self.selectAreaMotionX, self.selectAreaMotionY, self.selectAreaMotionWidth, self.selectAreaMotionHeight)
