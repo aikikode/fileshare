@@ -24,6 +24,7 @@
 #
 
 import sys, os, shutil, tempfile
+import ConfigParser
 import gtk
 import appindicator
 import threading
@@ -39,8 +40,14 @@ import xml.dom.minidom
 import gobject
 
 VERSION = "0.1"
-ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
 FILE_GRABBER_SIZE=50
+# Anonymous access
+ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
+# Account based access
+CONSUMER_KEY="61aadc0beb93b6181adb6f3833e86fe9050993c85"
+CONSUMER_SECRET="fbf2b4ced06d3d399d39dece82d5f488"
+
+CONFIG_FILE="~/.fileshare/settings.cfg"
 
 class SingleInstance(object):
     """ Class to ensure, that single instance of the applet is run for each user """
@@ -86,6 +93,7 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
+        self.read_settings()
         self.ind = appindicator.Indicator("fileshare-services-client",
             "indicator-fileshare",
             appindicator.CATEGORY_APPLICATION_STATUS)
@@ -94,15 +102,33 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber = FileGrabber()
         self.create_menu()
 
+    def read_settings(self):
+        config = ConfigParser.RawConfigParser()
+        try:
+            config.read(CONFIG_FILE)
+            self.final_token = config.get("Auth", "final_token")
+            self.final_token_secret = config.get("Auth", "final_token_secret")
+        except:
+            self.final_token = None
+            self.final_token_secret = None
+    #def read_settings(self)
+
     def create_menu(self):
         self.menu = gtk.Menu()
         # Create menu items
+        ## Create screenshot
+        buf = "Select screen area to grab..."
+        screen_area_grab = gtk.MenuItem(buf)
+        self.menu.append(screen_area_grab)
+        screen_area_grab.connect("activate", self.grab_screen_area, buf)
+        screen_area_grab.show()
+
         ## Open imgur site
         buf = "Open Imgur"
-        menu_item_open_site_url = gtk.MenuItem(buf)
-        self.menu.append(menu_item_open_site_url)
-        menu_item_open_site_url.connect("activate", self.open_site, buf)
-        menu_item_open_site_url.show()
+        open_site_url = gtk.MenuItem(buf)
+        self.menu.append(open_site_url)
+        open_site_url.connect("activate", self.open_site, buf)
+        open_site_url.show()
 
         ## Widget for grabbing files
         grab_files = gtk.MenuItem("Show/hide File Grabber")
@@ -131,12 +157,75 @@ class IndicatorFileshare(threading.Thread):
         self.ind.set_menu(self.menu)
     #def create_menu(self)
 
+    ##########################################################################
+    def grab_screen_area(self, widget, buf):
+        screen = gtk.gdk.screen_get_default()
+        root = screen.get_root_window()
+        gtk.gdk.flush()
+        gc = root.new_gc(foreground = gtk.gdk.color_parse('white'),
+                function = gtk.gdk.INVERT,
+                subwindow_mode = gtk.gdk.INCLUDE_INFERIORS,
+                line_width = 1,
+                line_style = gtk.gdk.LINE_SOLID,
+                cap_style = gtk.gdk.CAP_BUTT,
+                join_style = gtk.gdk.JOIN_ROUND)
+        if not gtk.gdk.pointer_is_grabbed() and gtk.gdk.pointer_grab(
+                root,
+                False,
+                gtk.gdk.BUTTON_MOTION_MASK |
+                    gtk.gdk.BUTTON1_MOTION_MASK |
+                    gtk.gdk.POINTER_MOTION_MASK |
+                    gtk.gdk.BUTTON_PRESS_MASK |
+                    gtk.gdk.BUTTON_RELEASE_MASK,
+                None,
+                gtk.gdk.Cursor(gtk.gdk.CROSSHAIR)) != gtk.gdk.GRAB_SUCCESS:
+            return False
+        self.selectAreaMotionX = self.selectAreaMotionY = self.selectAreaMotionWidth = self.selectAreaMotionHeight = 0
+        self.selectAreaButtonPressed = False
+        gtk.gdk.event_handler_set(self.select_area_event_handler, (root, gc))
+
+    def select_area_event_handler(self, event, data):
+        root, gc = data
+        if event.type == gtk.gdk.MOTION_NOTIFY and self.selectAreaButtonPressed:
+            x, y = int(min(self.selectAreaMouseX, event.x_root)), int(min(self.selectAreaMouseY, event.y_root))
+            width, height = int(abs(self.selectAreaMouseX - event.x_root)), int(abs(self.selectAreaMouseY - event.y_root))
+            root.draw_rectangle(gc, False, self.selectAreaMotionX, self.selectAreaMotionY, self.selectAreaMotionWidth, self.selectAreaMotionHeight)
+            root.draw_rectangle(gc, False, x, y, width, height)
+            self.selectAreaMotionX, self.selectAreaMotionY, self.selectAreaMotionWidth, self.selectAreaMotionHeight = x, y, width, height
+        elif event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
+            self.selectAreaMouseX = event.x_root
+            self.selectAreaMouseY = event.y_root
+            self.selectAreaButtonPressed = True
+        elif event.type == gtk.gdk.BUTTON_RELEASE and event.button == 1:
+            gtk.gdk.pointer_ungrab()
+            gtk.gdk.event_handler_set(lambda event: gtk.main_do_event(event))
+            root.draw_rectangle(gc, False, self.selectAreaMotionX, self.selectAreaMotionY, self.selectAreaMotionWidth, self.selectAreaMotionHeight)
+            if self.selectAreaMotionWidth > 0 and self.selectAreaMotionHeight > 0:
+                self.take_screen_of_area_complete_handler(self.selectAreaMotionX, self.selectAreaMotionY, self.selectAreaMotionWidth, self.selectAreaMotionHeight)
+            self.selectAreaButtonPressed = False
+        else:
+            gtk.main_do_event(event)
+
+    def take_screen_of_area_complete_handler(self, x, y, width, height):
+        root = gtk.gdk.get_default_root_window()
+        pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, width, height)
+        pixbuf = pixbuf.get_from_drawable(root, root.get_colormap(), x, y, 0, 0, width, height)
+        self.gtk_screen_image = pixbuf
+        (fp, temp_img_file)=tempfile.mkstemp()
+        print "Tmp file: " + temp_img_file
+        self.gtk_screen_image.save(temp_img_file, "png")
+        self.file_grabber.upload(temp_img_file)
+        os.remove(temp_img_file)
+
+    ##########################################################################
     def open_site(self, widget, buf):
         webbrowser.open('https://imgur.com/')
 
+    ##########################################################################
     def toggle_file_grabber(self, widget):
         self.file_grabber.toggle_window()
 
+    ##########################################################################
     def about(self, widget):
         log.debug("Indicator: open About dialog")
         self.about_dialog = gtk.AboutDialog()
@@ -158,6 +247,7 @@ class IndicatorFileshare(threading.Thread):
         log.debug("Indicator: closing About dialog")
         self.about_dialog.destroy()
 
+    ##########################################################################
     # Quit the applet
     def quit(self, widget, data=None):
         log.debug("Indicator: Quitting")
@@ -212,7 +302,6 @@ class FileGrabber():
         file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
         context.finish(True, False, time)
         self.upload(file_to_upload)
-        self.show_result()
 
     def upload(self, image):
         log.debug("Uploading file: " + image)
@@ -227,6 +316,7 @@ class FileGrabber():
         self.curl.perform()
         log.debug("Response: " + self.response)
         self.dom = xml.dom.minidom.parseString(self.response)
+        self.show_result()
         return True
 
     def img2base64(self, image):
@@ -243,7 +333,7 @@ class FileGrabber():
             link = self.dom.getElementsByTagName(tag)
             if link:
                 links.append((tag, link[0].firstChild.nodeValue))
-        print links
+        log.debug(links)
         url = links[0][1]
         self.cb.set_text(url)
         self.cb.store()
