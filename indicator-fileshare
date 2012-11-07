@@ -215,10 +215,48 @@ class IndicatorFileshare(threading.Thread):
         pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, width, height)
         pixbuf = pixbuf.get_from_drawable(root, root.get_colormap(), x, y, 0, 0, width, height)
         self.gtk_screen_image = pixbuf
+        # Call preview window
+        self.preview_screen_of_area()
+
+    def upload_from_pixmap(self):
         (fp, temp_img_file)=tempfile.mkstemp()
         self.gtk_screen_image.save(temp_img_file, "png")
-        self.file_grabber.upload(temp_img_file)
+        self.file_grabber.upload_file(temp_img_file)
         os.remove(temp_img_file)
+
+    def preview_screen_of_area(self):
+        def response(dialog, resp_id):
+            if resp_id == gtk.RESPONSE_CANCEL:
+                dialog.destroy()
+            elif resp_id == gtk.RESPONSE_UPLOAD:
+                gobject.timeout_add(100, dialog.destroy)
+                self.upload_from_pixmap()
+
+        image = self.gtk_screen_image
+        gtk.RESPONSE_UPLOAD = 123
+        gtk.stock_add([ (gtk.STOCK_GO_UP, "Upload", 0, 0, '') ])
+        preview_dialog = gtk.Dialog(title = "Preview screenshot",
+                flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                buttons = (
+                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                    gtk.STOCK_GO_UP, gtk.RESPONSE_UPLOAD))
+        preview_dialog.set_modal(True)
+        preview_dialog.set_decorated(False)
+        # Scale image for preview
+        preview_image_width = float(image.get_width())
+        preview_image_height = float(image.get_height())
+        if preview_image_width / preview_image_height > 3:
+            preview_image_height = int(round((400 / preview_image_width) * preview_image_height))
+            preview_image_width = 400
+        else:
+            preview_image_width = int(round((300 / preview_image_height) * preview_image_width))
+            preview_image_height = 300
+        preview_image = image.scale_simple(preview_image_width, preview_image_height, gtk.gdk.INTERP_BILINEAR)
+        widget_image = gtk.image_new_from_pixbuf(preview_image)
+        widget_image.show()
+        preview_dialog.vbox.add(widget_image)
+        preview_dialog.connect('response', response)
+        preview_dialog.run()
 
     ##########################################################################
     def open_site(self, widget, buf):
@@ -304,9 +342,9 @@ class FileGrabber():
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
         file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
         context.finish(True, False, time)
-        self.upload(file_to_upload)
+        self.upload_file(file_to_upload)
 
-    def upload(self, image):
+    def upload_file(self, image):
         log.debug("Uploading file: " + image)
         self.response = ''
         self.base64String = self.img2base64(image)
