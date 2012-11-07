@@ -12,7 +12,7 @@
 
 BUILDDIR="build"
 APPNAME="indicator-fileshare"
-VERSION="0.1"
+VERSION=$(egrep "^VERSION =" ./$APPNAME | egrep -o "[0-9\.]+")
 
 mkdir -p $BUILDDIR
 if [ -d $BUILDDIR ]
