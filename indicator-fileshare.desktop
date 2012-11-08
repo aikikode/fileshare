@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Fileshare Applet
-Comment=Indicator applet for file sharing services
+Comment=Applet for file sharing services like imgur.com
 GenericName=Fileshare Applet
 Categories=GNOME;Utility;
 Exec=indicator-fileshare

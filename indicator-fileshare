@@ -103,6 +103,7 @@ class IndicatorFileshare(threading.Thread):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
         self.read_settings()
+        self.check_autostart()
         self.ind = appindicator.Indicator("fileshare-services-client",
             "indicator-fileshare",
             appindicator.CATEGORY_APPLICATION_STATUS)
@@ -121,6 +122,28 @@ class IndicatorFileshare(threading.Thread):
             self.final_token = None
             self.final_token_secret = None
     #def read_settings(self)
+
+    def check_autostart(self):
+        autostart_dir = os.path.join(os.path.expanduser("~"),".config/autostart/")
+        autostart_file = "indicator-fileshare.desktop"
+        autostart_path = os.path.join(autostart_dir, autostart_file)
+        if not os.path.isfile(autostart_path):
+            # Look for desktop file
+            desktop_file_path = None
+            desktop_file_directory = "/usr/share/applications"
+            fullpath = os.path.normpath(os.path.join(desktop_file_directory, autostart_file))
+            if os.path.isfile(fullpath):
+                desktop_file_path = fullpath
+            # If we've found the desktop file, create symlink
+            if desktop_file_path:
+                if not os.path.exists(autostart_dir):
+                    os.mkdir(autostart_dir)
+                if os.path.isdir(autostart_dir):
+                    log.debug("Installing autostart file.")
+                    os.symlink(desktop_file_path, autostart_path)
+            #if desktop_file_path
+        #if not os.path.isfile(autostart_path)
+    #def check_autostart(self)
 
     def create_menu(self):
         self.menu = gtk.Menu()

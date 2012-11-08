@@ -4,4 +4,6 @@ Maintainer: Denis Kovalev <aikikode@gmail.com>
 Package: indicator-fileshare
 Architecture: all
 Description: Imgur and Droplr applet indicator
+Depends: gnome-icon-theme, libgtk2.0-bin, python-appindicator, python-gconf, python-gobject, python-gtk2
+Homepage: https://github.com/aikikode/fileshare
 Version: 0.2
