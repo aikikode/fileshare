@@ -1,7 +1,21 @@
 Fileshare Applet
 ================
-Simple and clean Linux toolbar applet for quick image and file sharing through
-popular on-line services.
+Fileshare applet development is inspired mostly by Droplr windows client. Its
+purpose is to share images over the Internet using on-line services.
+By now only Imgur (http://imgur.com) is supported. Droplr support will be added
+when they provide API.
 
-By now only Imgur (http://imgur.com) is supported.
-Droplr support will be added when they provide API.
+Fileshare applet features:
+ - drag'n'drop image files to 'File Grabber' to upload
+ - select screen area to grab, show preview and upload
+ - link to the result image is automatically stored in the buffer, just paste
+   to share the link
+
+To install Fileshare go to downloads page, download the package and install via
+system package manager.
+
+Special thanks to:
+ - Droplr developers for idea
+ - Weather Indicator Team for first steps in Unity Python toolbar application
+   development
+ - VladX, Nanoshot developer for many great PyGTK examples
