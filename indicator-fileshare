@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # Copyright 2012
 #
@@ -24,6 +25,7 @@
 #
 
 import sys, os, shutil, tempfile
+import ConfigParser
 import gtk
 import appindicator
 import threading
@@ -37,11 +39,23 @@ import base64
 import xml.dom.minidom
 # for delayed actions
 import gobject
+# for screen area grabber colors
+import cairo
 
-VERSION = "0.1"
-ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
+gobject.threads_init()
+
+VERSION = "0.2"
 FILE_GRABBER_SIZE=50
+# Anonymous access
+ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
+# Account based access
+CONSUMER_KEY="61aadc0beb93b6181adb6f3833e86fe9050993c85"
+CONSUMER_SECRET="fbf2b4ced06d3d399d39dece82d5f488"
 
+CONFIG_FILE="~/.fileshare/settings.cfg"
+
+
+##############################################################################
 class SingleInstance(object):
     """ Class to ensure, that single instance of the applet is run for each user """
 
@@ -82,10 +96,14 @@ class SingleInstance(object):
     #def __del__(self)
 #class SingleInstance(object)
 
+
+##############################################################################
 class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
+        self.read_settings()
+        self.check_autostart()
         self.ind = appindicator.Indicator("fileshare-services-client",
             "indicator-fileshare",
             appindicator.CATEGORY_APPLICATION_STATUS)
@@ -94,23 +112,61 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber = FileGrabber()
         self.create_menu()
 
+    def read_settings(self):
+        config = ConfigParser.RawConfigParser()
+        try:
+            config.read(CONFIG_FILE)
+            self.final_token = config.get("Auth", "final_token")
+            self.final_token_secret = config.get("Auth", "final_token_secret")
+        except:
+            self.final_token = None
+            self.final_token_secret = None
+    #def read_settings(self)
+
+    def check_autostart(self):
+        autostart_dir = os.path.join(os.path.expanduser("~"),".config/autostart/")
+        autostart_file = "indicator-fileshare.desktop"
+        autostart_path = os.path.join(autostart_dir, autostart_file)
+        if not os.path.isfile(autostart_path):
+            # Look for desktop file
+            desktop_file_path = None
+            desktop_file_directory = "/usr/share/applications"
+            fullpath = os.path.normpath(os.path.join(desktop_file_directory, autostart_file))
+            if os.path.isfile(fullpath):
+                desktop_file_path = fullpath
+            # If we've found the desktop file, create symlink
+            if desktop_file_path:
+                if not os.path.exists(autostart_dir):
+                    os.mkdir(autostart_dir)
+                if os.path.isdir(autostart_dir):
+                    log.debug("Installing autostart file.")
+                    os.symlink(desktop_file_path, autostart_path)
+            #if desktop_file_path
+        #if not os.path.isfile(autostart_path)
+    #def check_autostart(self)
+
     def create_menu(self):
         self.menu = gtk.Menu()
         # Create menu items
-        ## Open imgur site
-        buf = "Open Imgur"
-        menu_item_open_site_url = gtk.MenuItem(buf)
-        self.menu.append(menu_item_open_site_url)
-        menu_item_open_site_url.connect("activate", self.open_site, buf)
-        menu_item_open_site_url.show()
+        ##Grab screen area
+        screen_area_grab = gtk.MenuItem("Select screen area to grab...")
+        self.menu.append(screen_area_grab)
+        screen_area_grab.connect("activate", self.grab_screen_area)
+        screen_area_grab.show()
 
-        ## Widget for grabbing files
+        ##Open http://imgur.com in the browser
+        open_site_url = gtk.MenuItem("Open Imgur")
+        self.menu.append(open_site_url)
+        open_site_url.connect("activate", self.open_site)
+        open_site_url.show()
+
+        ##Widget for grabbing files
         grab_files = gtk.MenuItem("Show/hide File Grabber")
         grab_files.connect("activate", self.toggle_file_grabber)
         grab_files.show()
         self.menu.append(grab_files)
 
-        ## Breaker
+        ##Breaker
         breaker = gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
@@ -127,16 +183,83 @@ class IndicatorFileshare(threading.Thread):
         quit.show()
         self.menu.append(quit)
 
-        # set menu
         self.ind.set_menu(self.menu)
     #def create_menu(self)
 
+    ##########################################################################
+    def grab_screen_area(self, widget):
+        ScreenGrabber(self.select_area_event_handler)
+
+    def select_area_event_handler(self, widget, event, selector):
+        if event.type == gtk.gdk.MOTION_NOTIFY:
+            selector.redraw(event.x, event.y)
+        elif event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
+            selector.start_selection(event.x, event.y)
+        elif event.type == gtk.gdk.BUTTON_RELEASE and event.button == 1:
+            selector.stop_selection(event.x, event.y)
+            selector.set_complete_handler(self.take_screen_of_area_complete_handler)
+            selector.__del__()
+            del selector
+        elif (event.type == gtk.gdk.BUTTON_PRESS and event.button == 3) or (event.type == gtk.gdk.KEY_PRESS and event.keyval == gtk.gdk.keyval_from_name('Escape')):
+            selector.__del__()
+            del selector
+
+    def take_screen_of_area_complete_handler(self, x, y, width, height):
+        root = gtk.gdk.get_default_root_window()
+        pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, width, height)
+        pixbuf = pixbuf.get_from_drawable(root, root.get_colormap(), x, y, 0, 0, width, height)
+        self.gtk_screen_image = pixbuf
+        # Call preview window
+        self.preview_screen_of_area()
+
+    def upload_from_pixmap(self):
+        (fp, temp_img_file)=tempfile.mkstemp()
+        self.gtk_screen_image.save(temp_img_file, "png")
+        self.file_grabber.upload_file(temp_img_file, True)
+
+    def preview_screen_of_area(self):
+        def response(dialog, resp_id):
+            if resp_id == gtk.RESPONSE_UPLOAD:
+                self.upload_from_pixmap()
+
+        image = self.gtk_screen_image
+        gtk.RESPONSE_UPLOAD = 123
+        gtk.stock_add([ (gtk.STOCK_GO_UP, "Upload", 0, 0, '') ])
+        self.preview_dialog = preview_dialog = gtk.Dialog(title = "Preview screenshot",
+                flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                buttons = (
+                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                    gtk.STOCK_GO_UP, gtk.RESPONSE_UPLOAD))
+        preview_dialog.set_modal(True)
+        preview_dialog.set_decorated(False)
+        # Scale image for preview
+        preview_image_width = float(image.get_width())
+        preview_image_height = float(image.get_height())
+        MAX_WIDTH = 600
+        MAX_HEIGHT = 400
+        if preview_image_width / preview_image_height > MAX_WIDTH / MAX_HEIGHT:
+            preview_image_height = int(round((MAX_WIDTH / preview_image_width) * preview_image_height))
+            preview_image_width = MAX_WIDTH
+        else:
+            preview_image_width = int(round((MAX_HEIGHT / preview_image_height) * preview_image_width))
+            preview_image_height = MAX_HEIGHT
+        preview_image = image.scale_simple(preview_image_width, preview_image_height, gtk.gdk.INTERP_BILINEAR)
+        widget_image = gtk.image_new_from_pixbuf(preview_image)
+        widget_image.show()
+        preview_dialog.vbox.add(widget_image)
+        preview_dialog.connect('response', response)
+        preview_dialog.run()
+        preview_dialog.destroy()
+
+    ##########################################################################
     def open_site(self, widget, buf):
         webbrowser.open('https://imgur.com/')
 
+    ##########################################################################
     def toggle_file_grabber(self, widget):
         self.file_grabber.toggle_window()
 
+    ##########################################################################
     def about(self, widget):
         log.debug("Indicator: open About dialog")
         self.about_dialog = gtk.AboutDialog()
@@ -158,11 +281,15 @@ class IndicatorFileshare(threading.Thread):
         log.debug("Indicator: closing About dialog")
         self.about_dialog.destroy()
 
+    ##########################################################################
     # Quit the applet
     def quit(self, widget, data=None):
         log.debug("Indicator: Quitting")
         gtk.main_quit()
+#class IndicatorFileshare(threading.Thread)
 
+
+##############################################################################
 class FileGrabber():
     """ Applet for drag'n'drop files to. The file is automatically uploaded to
         the hosting and the result URL is copied into the clipboard """
@@ -211,23 +338,27 @@ class FileGrabber():
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
         file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
         context.finish(True, False, time)
-        self.upload(file_to_upload)
-        self.show_result()
+        self.upload_file(file_to_upload, False)
 
-    def upload(self, image):
-        log.debug("Uploading file: " + image)
-        self.response = ''
-        self.base64String = self.img2base64(image)
-        self.curl = curl = pycurl.Curl()
-        curl.setopt(pycurl.URL, 'http://api.imgur.com/2/upload.xml')
-        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
-        curl.setopt(pycurl.POST, 1)
-        curl.setopt(pycurl.HTTPPOST, [ ('key', ANONYMOUS_API_KEY), ('image', self.base64String) ])
-        curl.setopt(pycurl.WRITEFUNCTION, self.write)
-        self.curl.perform()
-        log.debug("Response: " + self.response)
-        self.dom = xml.dom.minidom.parseString(self.response)
-        return True
+    def upload_file(self, image, remove = False):
+        def upload_callback(image, remove):
+            log.debug("Uploading file: " + image)
+            self.response = ''
+            self.base64String = self.img2base64(image)
+            self.curl = curl = pycurl.Curl()
+            curl.setopt(pycurl.URL, 'http://api.imgur.com/2/upload.xml')
+            curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+            curl.setopt(pycurl.POST, 1)
+            curl.setopt(pycurl.HTTPPOST, [ ('key', ANONYMOUS_API_KEY), ('image', self.base64String) ])
+            curl.setopt(pycurl.WRITEFUNCTION, self.write)
+            self.curl.perform()
+            log.debug("Response: " + self.response)
+            self.dom = xml.dom.minidom.parseString(self.response)
+            self.show_result()
+            if remove:
+                os.remove(image)
+            return False  # return False not to be called again as callback
+        gobject.idle_add(upload_callback, image, remove)
 
     def img2base64(self, image):
         with open(image, "rb") as image_file:
@@ -243,7 +374,7 @@ class FileGrabber():
             link = self.dom.getElementsByTagName(tag)
             if link:
                 links.append((tag, link[0].firstChild.nodeValue))
-        print links
+        log.debug(links)
         url = links[0][1]
         self.cb.set_text(url)
         self.cb.store()
@@ -266,12 +397,133 @@ class FileGrabber():
 #class FileGrabber()
 
 
+##############################################################################
+class ScreenGrabber(threading.Thread):
+    def __init__(self, eventHandler):
+        threading.Thread.__init__(self)
+        log.debug("ScreenGrabber: creating")
+        self.selected = False
+        root = gtk.gdk.get_default_root_window()
+        self.screenWidth, self.screenHeight = root.get_size()
+        width, height = self.screenWidth, self.screenHeight
+        self.drawingWindow = drawingWindow = gtk.Window(gtk.WINDOW_POPUP)
+        drawingWindow.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_SPLASHSCREEN)
+        drawingWindow.set_decorated(False)
+        drawingWindow.set_has_frame(False)
+        drawingWindow.set_skip_taskbar_hint(True)
+        drawingWindow.set_skip_pager_hint(True)
+        drawingWindow.set_can_focus(True)
+        drawingWindow.set_accept_focus(True)
+        drawingWindow.set_keep_above(True)
+        drawingWindow.set_default_size(width, height)
+        drawingWindow.resize(width, height)
+        drawingWindow.move(0, 0)
+        rgba = drawingWindow.get_screen().get_rgba_colormap()
+        drawingWindow.set_app_paintable(True)
+        drawingWindow.set_colormap(rgba)
+        drawingWindow.set_events(gtk.gdk.POINTER_MOTION_MASK |
+                                 gtk.gdk.BUTTON_PRESS_MASK |
+                                 gtk.gdk.BUTTON_RELEASE_MASK |
+                                 gtk.gdk.KEY_PRESS_MASK)
+        drawingWindow.show()
+        drawingWindow.present()
+        gtk.gdk.keyboard_grab(drawingWindow.window)
+        cursor = gtk.gdk.Cursor(gtk.gdk.CROSSHAIR)
+        drawingWindow.window.set_cursor(cursor)
+        self.cursor = 'crosshair'
+        drawingWindow.connect_after('expose-event', self.expose_event)
+        drawingWindow.connect('button-press-event', eventHandler, self)
+        drawingWindow.connect('button-release-event', eventHandler, self)
+        drawingWindow.connect('key-press-event', eventHandler, self)
+        drawingWindow.connect('motion-notify-event', eventHandler, self)
+
+    def __del__(self):
+        if hasattr(self, 'deleted'):
+            return True
+        ctx = self.drawingWindow.window.cairo_create()
+        self.clear(ctx)
+        gtk.gdk.keyboard_ungrab()
+        # Give cairo some time to clear the screen before the destruction of the window
+        gobject.timeout_add(50, self.drawingWindow.destroy)
+        if self.selected and hasattr(self, 'completeHandler'):
+            x = int(round(min(self.selection_x_start, self.selection_x_end)))
+            y = int(round(min(self.selection_y_start, self.selection_y_end)))
+            width = int(round(abs(self.selection_x_end - self.selection_x_start)))
+            height = int(round(abs(self.selection_y_end - self.selection_y_start)))
+            # Do not take screen shot if grabbed area is too small
+            if width > 10 and height > 10:
+                gobject.timeout_add(150, self.completeHandler, x, y, width, height)
+            else:
+                log.debug("ScreenGrabber: selected area is too small")
+        self.deleted = True
+
+    def start_selection(self, x, y):
+        self.selection_x_start = x
+        self.selection_y_start = y
+        self.selected = True
+        self.dark_fill()
+
+    def stop_selection(self, x, y):
+        self.selection_x_end = x
+        self.selection_y_end = y
+        self.drawingWindow.present()
+
+    def redraw(self, x, y):
+        if not self.selected:
+            return False
+        # recalculate the selected rectangle
+        rLefx = min(self.selection_x_start, x)
+        rTopy = min(self.selection_y_start, y)
+        rRigx = max(self.selection_x_start, x)
+        rBoty = max(self.selection_y_start, y)
+        width = rRigx - rLefx
+        height = rBoty - rTopy
+        ctx = self.drawingWindow.window.cairo_create()
+        # shade the whole screen
+        ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
+        ctx.clip()
+        ctx.new_path()
+        ctx.set_operator(cairo.OPERATOR_SOURCE)
+        ctx.set_antialias(cairo.ANTIALIAS_NONE)
+        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
+        ctx.paint()
+        # draw border
+        ctx.set_source_rgba(255.0, 255.0, 255.0, 0.7)
+        ctx.rectangle(rLefx, rTopy, width, height)
+        ctx.fill()
+        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.0)
+        ctx.rectangle(rLefx + 1, rTopy + 1, width - 2, height - 2)
+        ctx.fill()
+
+    def clear(self, ctx):
+        ctx.set_operator(cairo.OPERATOR_CLEAR)
+        ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
+        ctx.fill()
+        return ctx
+
+    def dark_fill(self):
+        ctx = self.drawingWindow.window.cairo_create()
+        ctx.set_operator(cairo.OPERATOR_SOURCE)
+        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
+        ctx.paint()
+
+    def expose_event(self, widget, event):
+        self.dark_fill()
+        if self.selected:
+            self.redraw(self.selection_x_end, self.selection_y_end)
+
+    def set_complete_handler(self, completeHandler):
+        self.completeHandler = completeHandler
+#class ScreenGrabber(threading.Thread)
+
+
+##############################################################################
 def main():
     gtk.main()
     return 0
 
 if __name__ == "__main__":
-    #Enable and configure logs
+    # Enable and configure logs
     global log
     cachedir = os.environ.get('XDG_CACHE_HOME','').strip()
     if not cachedir:
@@ -291,14 +543,10 @@ if __name__ == "__main__":
 
     # Single instance stuff for fileshare indicator
     myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
-    # check is another instance of same program running
+    # Check is another instance of same program running
     if myapp.is_already_running():
         log.info("Another instance of this program is already running")
         sys.exit("Another instance of this program is already running")
-    # not running, safe to continue...
-    gtk.gdk.threads_init()
-    gtk.gdk.threads_enter()
 
     di = IndicatorFileshare()
     main()
-    gtk.gdk.threads_leave()

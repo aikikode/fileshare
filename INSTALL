@@ -1,0 +1,8 @@
+INSTALLATION
+============
+
+Currently deb-based system are supported.
+To install Fileshare Applet first run the following command:
+$ ./build_deb.sh
+It will create deb package in the current dir. Install it with:
+# dpkg -i <deb file>
