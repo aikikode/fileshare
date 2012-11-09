@@ -32,6 +32,8 @@ import threading
 import webbrowser
 import logging, logging.handlers
 import commands
+# to unquote cyrllic file names and spaces
+import urllib2
 # for uploading
 import pycurl
 import base64
@@ -44,7 +46,7 @@ import cairo
 
 gobject.threads_init()
 
-VERSION = "0.2"
+VERSION = "0.2.1"
 FILE_GRABBER_SIZE=50
 # Anonymous access
 ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
@@ -358,7 +360,13 @@ class FileGrabber():
             if remove:
                 os.remove(image)
             return False  # return False not to be called again as callback
-        gobject.idle_add(upload_callback, image, remove)
+
+        # convert file name to utf-8
+        file_to_upload = image.decode('UTF-8').encode('UTF-8')
+        # convert %80%20 and other to cyrillic symbols and spaces
+        file_to_upload = urllib2.unquote(file_to_upload)
+        gobject.idle_add(upload_callback, file_to_upload, remove)
+    #def upload_file(self, image, remove = False)
 
     def img2base64(self, image):
         with open(image, "rb") as image_file:
