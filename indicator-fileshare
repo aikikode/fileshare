@@ -46,7 +46,7 @@ import cairo
 
 gobject.threads_init()
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 FILE_GRABBER_SIZE=50
 # Anonymous access
 ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
@@ -254,7 +254,7 @@ class IndicatorFileshare(threading.Thread):
         preview_dialog.destroy()
 
     ##########################################################################
-    def open_site(self, widget, buf):
+    def open_site(self, widget):
         webbrowser.open('https://imgur.com/')
 
     ##########################################################################
