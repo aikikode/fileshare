@@ -272,7 +272,7 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
-        self.about_dialog.set_website("https://github.com/aikikode/fileshare")
+        self.about_dialog.set_website("http://aikikode.github.com/fileshare/")
         logo_path = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
         self.about_dialog.connect("response", self.about_close)
