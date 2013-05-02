@@ -46,15 +46,13 @@ import cairo
 
 gobject.threads_init()
 
-VERSION = "0.2.2"
-FILE_GRABBER_SIZE=50
-# Anonymous access
-ANONYMOUS_API_KEY="fba6adcf28f8439062ea52f22600e672"
-# Account based access
-CONSUMER_KEY="61aadc0beb93b6181adb6f3833e86fe9050993c85"
-CONSUMER_SECRET="fbf2b4ced06d3d399d39dece82d5f488"
+VERSION = "0.3.0"
+FILE_GRABBER_SIZE = 50
+# API v3
+CLIENT_ID = "813588ae4b2b41a"
+CLIENT_SECRET = "1cc11d1006c90d0e184daa29085a015e24cd6705"
 
-CONFIG_FILE="~/.fileshare/settings.cfg"
+CONFIG_FILE = "~/.fileshare/settings.cfg"
 
 
 ##############################################################################
@@ -63,12 +61,12 @@ class SingleInstance(object):
 
     # Initialize, specifying a path to store pids
     def __init__(self, pidPath):
-        self.pidPath=pidPath
+        self.pidPath = pidPath
         # See if pidFile exists
         if os.path.exists(pidPath):
             log.debug("SingleInstance: pid file %s exists" % pidPath)
             # Make sure it is not a "stale" pidFile
-            pid=open(pidPath, 'r').read().strip()
+            pid = open(pidPath, 'r').read().strip()
             # Check list of running pids, if not running it is stale so overwrite
             pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
             log.debug("SingleInstance: pid running %s" % pidRunning)
@@ -79,13 +77,14 @@ class SingleInstance(object):
         if not self.lasterror:
             log.debug("SingleInstance: writing new pid %s" % str(os.getpid()))
             # Create a temp file, copy it to pidPath and remove temporary file
-            (fp, temp_path)=tempfile.mkstemp()
+            (fp, temp_path) = tempfile.mkstemp()
             try:
                 os.fdopen(fp, "w+b").write(str(os.getpid()))
                 shutil.copy(temp_path, pidPath)
                 os.unlink(temp_path)
             except Exception as e:
                 log.error("SingleInstance: exception while renaming '%s' to '%s':\n %s" % (temp_path, pidPath, str(e)))
+
     #def __init__(self, pidPath)
 
     def is_already_running(self):
@@ -95,7 +94,8 @@ class SingleInstance(object):
         if not self.lasterror:
             log.debug("SingleInstance: deleting %s" % self.pidPath)
             os.unlink(self.pidPath)
-    #def __del__(self)
+            #def __del__(self)
+
 #class SingleInstance(object)
 
 
@@ -107,9 +107,9 @@ class IndicatorFileshare(threading.Thread):
         self.read_settings()
         self.check_autostart()
         self.ind = appindicator.Indicator("fileshare-services-client",
-            "indicator-fileshare",
-            appindicator.CATEGORY_APPLICATION_STATUS)
-        self.ind.set_status (appindicator.STATUS_ACTIVE)
+                                          "indicator-fileshare",
+                                          appindicator.CATEGORY_APPLICATION_STATUS)
+        self.ind.set_status(appindicator.STATUS_ACTIVE)
         self.ind.set_icon("/usr/local/share/indicator-fileshare/media/app_icon.png")
         self.file_grabber = FileGrabber()
         self.create_menu()
@@ -123,10 +123,11 @@ class IndicatorFileshare(threading.Thread):
         except:
             self.final_token = None
             self.final_token_secret = None
+
     #def read_settings(self)
 
     def check_autostart(self):
-        autostart_dir = os.path.join(os.path.expanduser("~"),".config/autostart/")
+        autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
         autostart_file = "indicator-fileshare.desktop"
         autostart_path = os.path.join(autostart_dir, autostart_file)
         if not os.path.isfile(autostart_path):
@@ -143,8 +144,9 @@ class IndicatorFileshare(threading.Thread):
                 if os.path.isdir(autostart_dir):
                     log.debug("Installing autostart file.")
                     os.symlink(desktop_file_path, autostart_path)
-            #if desktop_file_path
-        #if not os.path.isfile(autostart_path)
+                    #if desktop_file_path
+                    #if not os.path.isfile(autostart_path)
+
     #def check_autostart(self)
 
     def create_menu(self):
@@ -186,6 +188,7 @@ class IndicatorFileshare(threading.Thread):
         self.menu.append(quit)
 
         self.ind.set_menu(self.menu)
+
     #def create_menu(self)
 
     ##########################################################################
@@ -202,7 +205,8 @@ class IndicatorFileshare(threading.Thread):
             selector.set_complete_handler(self.take_screen_of_area_complete_handler)
             selector.__del__()
             del selector
-        elif (event.type == gtk.gdk.BUTTON_PRESS and event.button == 3) or (event.type == gtk.gdk.KEY_PRESS and event.keyval == gtk.gdk.keyval_from_name('Escape')):
+        elif (event.type == gtk.gdk.BUTTON_PRESS and event.button == 3) or (
+                    event.type == gtk.gdk.KEY_PRESS and event.keyval == gtk.gdk.keyval_from_name('Escape')):
             selector.__del__()
             del selector
 
@@ -215,7 +219,7 @@ class IndicatorFileshare(threading.Thread):
         self.preview_screen_of_area()
 
     def upload_from_pixmap(self):
-        (fp, temp_img_file)=tempfile.mkstemp()
+        (fp, temp_img_file) = tempfile.mkstemp()
         self.gtk_screen_image.save(temp_img_file, "png")
         self.file_grabber.upload_file(temp_img_file, True)
 
@@ -226,12 +230,12 @@ class IndicatorFileshare(threading.Thread):
 
         image = self.gtk_screen_image
         gtk.RESPONSE_UPLOAD = 123
-        gtk.stock_add([ (gtk.STOCK_GO_UP, "Upload", 0, 0, '') ])
-        self.preview_dialog = preview_dialog = gtk.Dialog(title = "Preview screenshot",
-                flags = gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                buttons = (
-                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                    gtk.STOCK_GO_UP, gtk.RESPONSE_UPLOAD))
+        gtk.stock_add([(gtk.STOCK_GO_UP, "Upload", 0, 0, '')])
+        self.preview_dialog = preview_dialog = gtk.Dialog(title="Preview screenshot",
+                                                          flags=gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                                                          buttons=(
+                                                              gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                                              gtk.STOCK_GO_UP, gtk.RESPONSE_UPLOAD))
         preview_dialog.set_modal(True)
         preview_dialog.set_decorated(False)
         # Scale image for preview
@@ -277,6 +281,7 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
         self.about_dialog.connect("response", self.about_close)
         self.about_dialog.show()
+
     #def about(self, widget)
 
     def about_close(self, widget, event=None):
@@ -288,6 +293,7 @@ class IndicatorFileshare(threading.Thread):
     def quit(self, widget, data=None):
         log.debug("Indicator: Quitting")
         gtk.main_quit()
+
 #class IndicatorFileshare(threading.Thread)
 
 
@@ -295,6 +301,7 @@ class IndicatorFileshare(threading.Thread):
 class FileGrabber():
     """ Applet for drag'n'drop files to. The file is automatically uploaded to
         the hosting and the result URL is copied into the clipboard """
+
     def __init__(self):
         self.cb = gtk.Clipboard()
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -342,20 +349,20 @@ class FileGrabber():
         context.finish(True, False, time)
         self.upload_file(file_to_upload, False)
 
-    def upload_file(self, image, remove = False):
+    def upload_file(self, image, remove=False):
         def upload_callback(image, remove):
             log.debug("Uploading file: " + image)
             self.response = ''
             self.base64String = self.img2base64(image)
             self.curl = curl = pycurl.Curl()
-            curl.setopt(pycurl.URL, 'http://api.imgur.com/2/upload.xml')
+            curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image.xml')
             curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
             curl.setopt(pycurl.POST, 1)
-            curl.setopt(pycurl.HTTPPOST, [ ('key', ANONYMOUS_API_KEY), ('image', self.base64String) ])
+            curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + CLIENT_ID])
+            curl.setopt(pycurl.HTTPPOST, [('image', self.base64String)])
             curl.setopt(pycurl.WRITEFUNCTION, self.write)
             self.curl.perform()
             log.debug("Response: " + self.response)
-            self.dom = xml.dom.minidom.parseString(self.response)
             self.show_result()
             if remove:
                 os.remove(image)
@@ -366,6 +373,7 @@ class FileGrabber():
         # convert %80%20 and other to cyrillic symbols and spaces
         file_to_upload = urllib2.unquote(file_to_upload)
         gobject.idle_add(upload_callback, file_to_upload, remove)
+
     #def upload_file(self, image, remove = False)
 
     def img2base64(self, image):
@@ -377,11 +385,12 @@ class FileGrabber():
         self.response += string
 
     def show_result(self):
+        self.dom = xml.dom.minidom.parseString(self.response)
         links = []
-        for tag in ('original', 'delete_page'):
-            link = self.dom.getElementsByTagName(tag)
-            if link:
-                links.append((tag, link[0].firstChild.nodeValue))
+        link = self.dom.getElementsByTagName('link')
+        if not link:
+            return
+        links.append(('link', link[0].firstChild.nodeValue))
         log.debug(links)
         url = links[0][1]
         self.cb.set_text(url)
@@ -401,7 +410,8 @@ class FileGrabber():
         result_window.show()
         # close the window with URL in 5 seconds
         gobject.timeout_add(5000, result_window.hide)
-    #def show_result(self)
+        #def show_result(self)
+
 #class FileGrabber()
 
 
@@ -479,7 +489,7 @@ class ScreenGrabber(threading.Thread):
     def redraw(self, x, y):
         if not self.selected:
             return False
-        # recalculate the selected rectangle
+            # recalculate the selected rectangle
         rLefx = min(self.selection_x_start, x)
         rTopy = min(self.selection_y_start, y)
         rRigx = max(self.selection_x_start, x)
@@ -522,6 +532,7 @@ class ScreenGrabber(threading.Thread):
 
     def set_complete_handler(self, completeHandler):
         self.completeHandler = completeHandler
+
 #class ScreenGrabber(threading.Thread)
 
 
@@ -530,17 +541,18 @@ def main():
     gtk.main()
     return 0
 
+
 if __name__ == "__main__":
     # Enable and configure logs
     global log
-    cachedir = os.environ.get('XDG_CACHE_HOME','').strip()
+    cachedir = os.environ.get('XDG_CACHE_HOME', '').strip()
     if not cachedir:
         cachedir = os.path.expanduser("~/.cache")
     log_filename = os.path.join(cachedir, "indicator-fileshare.log")
     log = logging.getLogger('IndicatorFileshare')
     log.propagate = False
     log.setLevel(logging.DEBUG)
-    log_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=1024*1024, backupCount=5)
+    log_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=1024 * 1024, backupCount=5)
     log_formatter = logging.Formatter("[%(threadName)s] %(asctime)s - %(levelname)s - %(message)s")
     log_handler.setFormatter(log_formatter)
     log.addHandler(log_handler)
