@@ -1,3 +1,13 @@
+v0.4.0
+  New Features:
+  - Imgur account support ('Log in' menu item)
+
+
+v0.3.0
+  New Features:
+  - Imgur APIv3 support
+
+
 v0.2.2
   Fixes:
   - fixed not working 'Open Imgur' menu item

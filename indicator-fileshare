@@ -114,31 +114,36 @@ class IndicatorFileshare(threading.Thread):
                                           appindicator.CATEGORY_APPLICATION_STATUS)
         self.ind.set_status(appindicator.STATUS_ACTIVE)
         self.ind.set_icon("/usr/local/share/indicator-fileshare/media/app_icon.png")
-        self.file_grabber = FileGrabber()
+        self.file_grabber = FileGrabber(self)
         self.create_menu()
 
     def read_settings(self):
         config = ConfigParser.RawConfigParser()
         global ACCESS_TOKEN
         global REFRESH_TOKEN
+        global USERNAME
         try:
             config.read(CONFIG_FILE)
             ACCESS_TOKEN = config.get("AUTH", "access_token")
             REFRESH_TOKEN = config.get("AUTH", "refresh_token")
+            USERNAME = config.get("AUTH", "username")
         except:
             ACCESS_TOKEN = ""
             REFRESH_TOKEN = ""
+            USERNAME = ""
     #def read_settings(self)
 
     def save_settings(self):
         config = ConfigParser.RawConfigParser()
         global ACCESS_TOKEN
         global REFRESH_TOKEN
+        global USERNAME
         try:
             if not config.has_section("AUTH"):
                 config.add_section("AUTH")
             config.set("AUTH", "access_token", ACCESS_TOKEN)
             config.set("AUTH", "refresh_token", REFRESH_TOKEN)
+            config.set("AUTH", "username", USERNAME)
             with open(CONFIG_FILE, 'w+') as configfile:
                 os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
@@ -194,13 +199,30 @@ class IndicatorFileshare(threading.Thread):
         breaker.show()
         self.menu.append(breaker)
 
+        ##About
+        about_show = gtk.MenuItem("About...")
+        about_show.connect("activate", self.about)
+        about_show.show()
+        self.menu.append(about_show)
+
+        ##Breaker
+        breaker = gtk.SeparatorMenuItem()
+        breaker.show()
+        self.menu.append(breaker)
+
         ##Log in
         global ACCESS_TOKEN
+        global USERNAME
         if not ACCESS_TOKEN:
-            self.auth = auth = gtk.MenuItem("Log in...")
+            self.auth = auth = gtk.MenuItem("Log in")
             self.auth_id = auth.connect("activate", self.login)
         else:
-            self.auth = auth = gtk.MenuItem("Log out...")
+            if not USERNAME:
+                self.refresh_access_token() # is done to get username
+            string = "Log out"
+            if USERNAME:
+                string = string + " (" + USERNAME + ")"
+            self.auth = auth = gtk.MenuItem(string)
             self.auth_id = auth.connect("activate", self.logout)
         auth.show()
         self.menu.append(auth)
@@ -209,12 +231,6 @@ class IndicatorFileshare(threading.Thread):
         breaker = gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
-
-        ##About
-        about_show = gtk.MenuItem("About...")
-        about_show.connect("activate", self.about)
-        about_show.show()
-        self.menu.append(about_show)
 
         ##Quit
         quit = gtk.ImageMenuItem(gtk.STOCK_QUIT)
@@ -311,7 +327,7 @@ class IndicatorFileshare(threading.Thread):
                 pin = dialog.pin_entry.get_text()
                 curl = pycurl.Curl()
                 curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-                curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+                curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
                 curl.setopt(pycurl.POST, 1)
                 curl.setopt(pycurl.HTTPPOST,
                             [('client_id', CLIENT_ID), ('client_secret', CLIENT_SECRET), ('grant_type', 'pin'),
@@ -322,9 +338,14 @@ class IndicatorFileshare(threading.Thread):
                 if "access_token" in resp:
                     global ACCESS_TOKEN
                     global REFRESH_TOKEN
+                    global USERNAME
                     ACCESS_TOKEN = str(resp["access_token"])
                     REFRESH_TOKEN = str(resp["refresh_token"])
-                    self.auth.set_label("Log out...")
+                    self.refresh_access_token() # is done to get username
+                    string = "Log out"
+                    if USERNAME:
+                        string = string + " (" + USERNAME + ")"
+                    self.auth.set_label(string)
                     self.auth.disconnect(self.auth_id)
                     self.auth_id = self.auth.connect("activate", self.logout)
                     self.save_settings()
@@ -348,15 +369,58 @@ class IndicatorFileshare(threading.Thread):
         pin_dialog.run()
         pin_dialog.destroy()
 
-    def logout(self, widget):
+    def logout(self, widget = None):
         global ACCESS_TOKEN
         global REFRESH_TOKEN
+        global USERNAME
         ACCESS_TOKEN = ""
         REFRESH_TOKEN = ""
-        self.auth.set_label("Log in...")
+        USERNAME = ""
+        self.auth.set_label("Log in")
         self.auth.disconnect(self.auth_id)
         self.auth_id = self.auth.connect("activate", self.login)
         self.save_settings()
+
+    def refresh_access_token(self):
+        curl = pycurl.Curl()
+        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
+        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
+        curl.setopt(pycurl.POST, 1)
+        global ACCESS_TOKEN
+        global REFRESH_TOKEN
+        global USERNAME
+        if REFRESH_TOKEN:
+            self.response = ""
+            curl.setopt(pycurl.HTTPPOST,
+                        [('refresh_token', REFRESH_TOKEN),
+                         ('client_id', CLIENT_ID),
+                         ('client_secret', CLIENT_SECRET),
+                         ('grant_type', 'refresh_token')])
+            curl.setopt(pycurl.WRITEFUNCTION, self.write)
+            curl.perform()
+            log.debug("Response: " + self.response)
+            resp = json.loads(self.response)
+            if 'access_token' in resp:
+                ACCESS_TOKEN = str(resp['access_token'])
+                REFRESH_TOKEN = str(resp['refresh_token'])
+                USERNAME = str(resp['account_username'])
+                self.save_settings()
+                return True
+            else:
+                self.logout()
+                # Inform the user that we have logged out
+                dialog = gtk.MessageDialog(parent=None,
+                                           flags=0,
+                                           type=gtk.MESSAGE_WARNING,
+                                           buttons=gtk.BUTTONS_OK,
+                                           message_format=None)
+                dialog.set_title("fileshare")
+                dialog.set_markup("Authentication failed!")
+                dialog.format_secondary_text("Please, log in again. Otherwise your images will be uploaded anonymously.")
+                dialog.run()
+                dialog.destroy()
+        return False
+
 
     ##########################################################################
     def about(self, widget):
@@ -396,8 +460,9 @@ class FileGrabber():
     """ Applet for drag'n'drop files to. The file is automatically uploaded to
         the hosting and the result URL is copied into the clipboard """
 
-    def __init__(self):
+    def __init__(self, parent=None):
         self.cb = gtk.Clipboard()
+        self.parent = parent
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_decorated(False)
         self.window.set_opacity(0.5)
@@ -450,12 +515,13 @@ class FileGrabber():
             self.base64String = self.img2base64(image)
             self.curl = curl = pycurl.Curl()
             curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image')
-            curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+            curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
             curl.setopt(pycurl.POST, 1)
             global ACCESS_TOKEN
             if ACCESS_TOKEN:
-                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Bearer " + str(ACCESS_TOKEN)])
+                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Bearer " + ACCESS_TOKEN])
             else:
+                # Anonymous upload
                 curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + CLIENT_ID])
             curl.setopt(pycurl.HTTPPOST, [('image', self.base64String)])
             curl.setopt(pycurl.WRITEFUNCTION, self.write)
@@ -463,9 +529,10 @@ class FileGrabber():
             log.debug("Response: " + self.response)
             if ACCESS_TOKEN and json.loads(self.response)['status'] == 403:
                 # Refresh auth token and repeat
-                if self.refresh_access_token():
+                if self.parent.refresh_access_token():
                     return upload_callback(image, remove)
-            self.show_result()
+            else:
+                self.show_result()
             if remove:
                 os.remove(image)
             return False  # return False not to be called again as callback
@@ -477,29 +544,6 @@ class FileGrabber():
         gobject.idle_add(upload_callback, file_to_upload, remove)
     #def upload_file(self, image, remove = False)
 
-    def refresh_access_token(self):
-        curl = pycurl.Curl()
-        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
-        curl.setopt(pycurl.POST, 1)
-        global ACCESS_TOKEN
-        global REFRESH_TOKEN
-        if REFRESH_TOKEN:
-            self.response = ""
-            curl.setopt(pycurl.HTTPPOST,
-                        [('refresh_token', REFRESH_TOKEN),
-                         ('client_id', CLIENT_ID),
-                         ('client_secret', CLIENT_SECRET),
-                         ('grant_type', 'refresh_token')])
-            curl.setopt(pycurl.WRITEFUNCTION, self.write)
-            curl.perform()
-            log.debug("Response: " + self.response)
-            resp = json.loads(self.response)
-            ACCESS_TOKEN = str(resp['access_token'])
-            REFRESH_TOKEN = str(resp['refresh_token'])
-            #USERNAME = str(resp['account_username'])
-            return True
-        return False
 
     def img2base64(self, image):
         with open(image, "rb") as image_file:
