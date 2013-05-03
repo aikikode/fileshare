@@ -23,7 +23,6 @@
         </header>
 
         <section id="downloads" class="clearfix">
-          <a href="https://github.com/downloads/aikikode/fileshare/indicator-fileshare-0.2.2.deb" id="download-deb" class="button"><span>Download .deb</span></a>
           <a href="https://github.com/aikikode/fileshare/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
           <!--<a href="https://github.com/aikikode/fileshare/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>-->
           <a href="https://github.com/aikikode/fileshare" id="view-on-github" class="button"><span>View on GitHub</span></a>
@@ -46,8 +45,13 @@ when they provide API.</p>
 <li>select screen area to grab, show preview and upload</li>
 <li>link to the result image is automatically stored in the buffer, just paste
 to share the link</li>
-</ul><p>To install Fileshare download the deb package and install via
-system package manager.</p>
+<li>Imgur account support: run 'Log in' menu item to connect application
+to your Imgur account</li>
+</ul><p>To install Fileshare run:</br>
+./build_deb.sh</br>
+this will create deb package. Install it with command:</br>
+# dpkg -i 'deb file'
+</p>
 
 <p>Special thanks to:</p>
 
