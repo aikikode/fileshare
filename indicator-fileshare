@@ -24,7 +24,7 @@
 # <http://www.gnu.org/licenses>
 #
 
-import sys, os, shutil, tempfile
+import sys, os, stat, shutil, tempfile
 import ConfigParser
 import gtk
 import appindicator
@@ -38,7 +38,7 @@ import urllib2
 import pycurl
 import base64
 # for parsing server response
-import xml.dom.minidom
+import json
 # for delayed actions
 import gobject
 # for screen area grabber colors
@@ -46,14 +46,17 @@ import cairo
 
 gobject.threads_init()
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 FILE_GRABBER_SIZE = 50
 # API v3
 CLIENT_ID = "813588ae4b2b41a"
 CLIENT_SECRET = "1cc11d1006c90d0e184daa29085a015e24cd6705"
 
-CONFIG_FILE = "~/.fileshare/settings.cfg"
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
 
+if not os.path.isdir(CONFIG_DIR):
+    os.mkdir(CONFIG_DIR)
 
 ##############################################################################
 class SingleInstance(object):
@@ -116,15 +119,31 @@ class IndicatorFileshare(threading.Thread):
 
     def read_settings(self):
         config = ConfigParser.RawConfigParser()
+        global ACCESS_TOKEN
+        global REFRESH_TOKEN
         try:
             config.read(CONFIG_FILE)
-            self.final_token = config.get("Auth", "final_token")
-            self.final_token_secret = config.get("Auth", "final_token_secret")
+            ACCESS_TOKEN = config.get("AUTH", "access_token")
+            REFRESH_TOKEN = config.get("AUTH", "refresh_token")
         except:
-            self.final_token = None
-            self.final_token_secret = None
-
+            ACCESS_TOKEN = ""
+            REFRESH_TOKEN = ""
     #def read_settings(self)
+
+    def save_settings(self):
+        config = ConfigParser.RawConfigParser()
+        global ACCESS_TOKEN
+        global REFRESH_TOKEN
+        try:
+            if not config.has_section("AUTH"):
+                config.add_section("AUTH")
+            config.set("AUTH", "access_token", ACCESS_TOKEN)
+            config.set("AUTH", "refresh_token", REFRESH_TOKEN)
+            with open(CONFIG_FILE, 'w+') as configfile:
+                os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
+                config.write(configfile)
+        except:
+            pass
 
     def check_autostart(self):
         autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
@@ -137,8 +156,8 @@ class IndicatorFileshare(threading.Thread):
             fullpath = os.path.normpath(os.path.join(desktop_file_directory, autostart_file))
             if os.path.isfile(fullpath):
                 desktop_file_path = fullpath
-            # If we've found the desktop file, create symlink
             if desktop_file_path:
+                # If we've found the desktop file, create symlink
                 if not os.path.exists(autostart_dir):
                     os.mkdir(autostart_dir)
                 if os.path.isdir(autostart_dir):
@@ -169,6 +188,22 @@ class IndicatorFileshare(threading.Thread):
         grab_files.connect("activate", self.toggle_file_grabber)
         grab_files.show()
         self.menu.append(grab_files)
+
+        ##Breaker
+        breaker = gtk.SeparatorMenuItem()
+        breaker.show()
+        self.menu.append(breaker)
+
+        ##Log in
+        global ACCESS_TOKEN
+        if not ACCESS_TOKEN:
+            self.auth = auth = gtk.MenuItem("Log in...")
+            self.auth_id = auth.connect("activate", self.login)
+        else:
+            self.auth = auth = gtk.MenuItem("Log out...")
+            self.auth_id = auth.connect("activate", self.logout)
+        auth.show()
+        self.menu.append(auth)
 
         ##Breaker
         breaker = gtk.SeparatorMenuItem()
@@ -266,6 +301,64 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber.toggle_window()
 
     ##########################################################################
+    def write(self, string):
+        self.response += string
+
+    def login(self, widget):
+        def auth_response(dialog, resp_id):
+            if resp_id == gtk.RESPONSE_OK:
+                self.response = ''
+                pin = dialog.pin_entry.get_text()
+                curl = pycurl.Curl()
+                curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
+                curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+                curl.setopt(pycurl.POST, 1)
+                curl.setopt(pycurl.HTTPPOST,
+                            [('client_id', CLIENT_ID), ('client_secret', CLIENT_SECRET), ('grant_type', 'pin'),
+                             ('pin', pin)])
+                curl.setopt(pycurl.WRITEFUNCTION, self.write)
+                curl.perform()
+                resp = json.loads(self.response)
+                if "access_token" in resp:
+                    global ACCESS_TOKEN
+                    global REFRESH_TOKEN
+                    ACCESS_TOKEN = str(resp["access_token"])
+                    REFRESH_TOKEN = str(resp["refresh_token"])
+                    self.auth.set_label("Log out...")
+                    self.auth.disconnect(self.auth_id)
+                    self.auth_id = self.auth.connect("activate", self.logout)
+                    self.save_settings()
+
+        #def auth_response(dialog, resp_id)
+        # Open browser windows and prompt for access to Imgur account
+        webbrowser.open(
+            "https://api.imgur.com/oauth2/authorize?client_id=" + CLIENT_ID + "&response_type=pin&state=APPLICATION_STATE")
+        # Window to enter PIN from the site
+        pin_dialog = gtk.Dialog(title="Enter PIN",
+                                flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+                                buttons=(
+                                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_OK, gtk.RESPONSE_OK))
+        pin_dialog.set_modal(False)
+        pin_dialog.set_decorated(True)
+        pin_dialog.pin_entry = pin_entry = gtk.Entry()
+        pin_entry.show()
+        pin_dialog.vbox.add(pin_entry)
+        pin_dialog.connect('response', auth_response)
+        pin_dialog.run()
+        pin_dialog.destroy()
+
+    def logout(self, widget):
+        global ACCESS_TOKEN
+        global REFRESH_TOKEN
+        ACCESS_TOKEN = ""
+        REFRESH_TOKEN = ""
+        self.auth.set_label("Log in...")
+        self.auth.disconnect(self.auth_id)
+        self.auth_id = self.auth.connect("activate", self.login)
+        self.save_settings()
+
+    ##########################################################################
     def about(self, widget):
         log.debug("Indicator: open About dialog")
         self.about_dialog = gtk.AboutDialog()
@@ -291,6 +384,7 @@ class IndicatorFileshare(threading.Thread):
     ##########################################################################
     # Quit the applet
     def quit(self, widget, data=None):
+        self.save_settings()
         log.debug("Indicator: Quitting")
         gtk.main_quit()
 
@@ -355,14 +449,22 @@ class FileGrabber():
             self.response = ''
             self.base64String = self.img2base64(image)
             self.curl = curl = pycurl.Curl()
-            curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image.xml')
+            curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image')
             curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
             curl.setopt(pycurl.POST, 1)
-            curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + CLIENT_ID])
+            global ACCESS_TOKEN
+            if ACCESS_TOKEN:
+                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Bearer " + str(ACCESS_TOKEN)])
+            else:
+                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + CLIENT_ID])
             curl.setopt(pycurl.HTTPPOST, [('image', self.base64String)])
             curl.setopt(pycurl.WRITEFUNCTION, self.write)
             self.curl.perform()
             log.debug("Response: " + self.response)
+            if ACCESS_TOKEN and json.loads(self.response)['status'] == 403:
+                # Refresh auth token and repeat
+                if self.refresh_access_token():
+                    return upload_callback(image, remove)
             self.show_result()
             if remove:
                 os.remove(image)
@@ -373,8 +475,31 @@ class FileGrabber():
         # convert %80%20 and other to cyrillic symbols and spaces
         file_to_upload = urllib2.unquote(file_to_upload)
         gobject.idle_add(upload_callback, file_to_upload, remove)
-
     #def upload_file(self, image, remove = False)
+
+    def refresh_access_token(self):
+        curl = pycurl.Curl()
+        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
+        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Nanoshot')
+        curl.setopt(pycurl.POST, 1)
+        global ACCESS_TOKEN
+        global REFRESH_TOKEN
+        if REFRESH_TOKEN:
+            self.response = ""
+            curl.setopt(pycurl.HTTPPOST,
+                        [('refresh_token', REFRESH_TOKEN),
+                         ('client_id', CLIENT_ID),
+                         ('client_secret', CLIENT_SECRET),
+                         ('grant_type', 'refresh_token')])
+            curl.setopt(pycurl.WRITEFUNCTION, self.write)
+            curl.perform()
+            log.debug("Response: " + self.response)
+            resp = json.loads(self.response)
+            ACCESS_TOKEN = str(resp['access_token'])
+            REFRESH_TOKEN = str(resp['refresh_token'])
+            #USERNAME = str(resp['account_username'])
+            return True
+        return False
 
     def img2base64(self, image):
         with open(image, "rb") as image_file:
@@ -385,14 +510,11 @@ class FileGrabber():
         self.response += string
 
     def show_result(self):
-        self.dom = xml.dom.minidom.parseString(self.response)
-        links = []
-        link = self.dom.getElementsByTagName('link')
-        if not link:
+        dict = json.loads(self.response)
+        try:
+            url = dict['data']['link']
+        except:
             return
-        links.append(('link', link[0].firstChild.nodeValue))
-        log.debug(links)
-        url = links[0][1]
         self.cb.set_text(url)
         self.cb.store()
         # create a window with result URL
