@@ -24,6 +24,8 @@
 # <http://www.gnu.org/licenses>
 #
 
+_author__ = 'aikikode'
+
 import sys, os, stat, shutil, tempfile
 import ConfigParser
 import gtk
@@ -32,25 +34,19 @@ import threading
 import webbrowser
 import logging, logging.handlers
 import commands
-# to unquote cyrllic file names and spaces
-import urllib2
-# for uploading
-import pycurl
-import base64
-# for parsing server response
-import json
 # for delayed actions
 import gobject
-# for screen area grabber colors
-import cairo
+
+APP_DIR = '/usr/local/share/indicator-fileshare'
+if APP_DIR not in sys.path:
+    sys.path.append(APP_DIR)
+
+from upload_services import Imgur
+from grabbers import FileGrabber, ScreenGrabber
 
 gobject.threads_init()
 
-VERSION = "0.4.0"
-FILE_GRABBER_SIZE = 50
-# API v3
-CLIENT_ID = "813588ae4b2b41a"
-CLIENT_SECRET = "1cc11d1006c90d0e184daa29085a015e24cd6705"
+VERSION = "0.4.1"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -87,7 +83,6 @@ class SingleInstance(object):
                 os.unlink(temp_path)
             except Exception as e:
                 log.error("SingleInstance: exception while renaming '%s' to '%s':\n %s" % (temp_path, pidPath, str(e)))
-
     #def __init__(self, pidPath)
 
     def is_already_running(self):
@@ -98,7 +93,6 @@ class SingleInstance(object):
             log.debug("SingleInstance: deleting %s" % self.pidPath)
             os.unlink(self.pidPath)
             #def __del__(self)
-
 #class SingleInstance(object)
 
 
@@ -119,36 +113,22 @@ class IndicatorFileshare(threading.Thread):
 
     def read_settings(self):
         config = ConfigParser.RawConfigParser()
-        global ACCESS_TOKEN
-        global REFRESH_TOKEN
-        global USERNAME
         try:
             config.read(CONFIG_FILE)
-            ACCESS_TOKEN = config.get("AUTH", "access_token")
-            REFRESH_TOKEN = config.get("AUTH", "refresh_token")
-            USERNAME = config.get("AUTH", "username")
-        except:
-            ACCESS_TOKEN = ""
-            REFRESH_TOKEN = ""
-            USERNAME = ""
+        except Exception as e:
+            log.error("Error: %s" % str(e))
+        self.service = Imgur(self, config, log)
     #def read_settings(self)
 
     def save_settings(self):
         config = ConfigParser.RawConfigParser()
-        global ACCESS_TOKEN
-        global REFRESH_TOKEN
-        global USERNAME
         try:
-            if not config.has_section("AUTH"):
-                config.add_section("AUTH")
-            config.set("AUTH", "access_token", ACCESS_TOKEN)
-            config.set("AUTH", "refresh_token", REFRESH_TOKEN)
-            config.set("AUTH", "username", USERNAME)
+            config = self.service.save_settings(config)
             with open(CONFIG_FILE, 'w+') as configfile:
                 os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except:
-            pass
+        except Exception as e:
+            log.error("Error: %s" % str(e))
 
     def check_autostart(self):
         autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
@@ -157,7 +137,7 @@ class IndicatorFileshare(threading.Thread):
         if not os.path.isfile(autostart_path):
             # Look for desktop file
             desktop_file_path = None
-            desktop_file_directory = "/usr/share/applications"
+            desktop_file_directory = '/usr/share/applications/'
             fullpath = os.path.normpath(os.path.join(desktop_file_directory, autostart_file))
             if os.path.isfile(fullpath):
                 desktop_file_path = fullpath
@@ -168,9 +148,8 @@ class IndicatorFileshare(threading.Thread):
                 if os.path.isdir(autostart_dir):
                     log.debug("Installing autostart file.")
                     os.symlink(desktop_file_path, autostart_path)
-                    #if desktop_file_path
-                    #if not os.path.isfile(autostart_path)
-
+            #if desktop_file_path
+        #if not os.path.isfile(autostart_path)
     #def check_autostart(self)
 
     def create_menu(self):
@@ -211,17 +190,15 @@ class IndicatorFileshare(threading.Thread):
         self.menu.append(breaker)
 
         ##Log in
-        global ACCESS_TOKEN
-        global USERNAME
-        if not ACCESS_TOKEN:
+        if not self.service.is_logged_in():
             self.auth = auth = gtk.MenuItem("Log in")
             self.auth_id = auth.connect("activate", self.login)
         else:
-            if not USERNAME:
-                self.refresh_access_token() # is done to get username
+            if not self.service.USERNAME:
+                self.service.refresh_access_token() # is done to get username
             string = "Log out"
-            if USERNAME:
-                string = string + " (" + USERNAME + ")"
+            if self.service.USERNAME:
+                string = string + " (" + self.service.USERNAME + ")"
             self.auth = auth = gtk.MenuItem(string)
             self.auth_id = auth.connect("activate", self.logout)
         auth.show()
@@ -239,12 +216,30 @@ class IndicatorFileshare(threading.Thread):
         self.menu.append(quit)
 
         self.ind.set_menu(self.menu)
-
     #def create_menu(self)
 
-    ##########################################################################
+    def login(self, widget):
+        self.service.login()
+        if self.service.is_logged_in():
+            log.debug("Logged in")
+            string = "Log out"
+            if self.service.USERNAME:
+                string = string + " (" + self.service.USERNAME + ")"
+            self.auth.set_label(string)
+            self.auth.disconnect(self.auth_id)
+            self.auth_id = self.auth.connect("activate", self.logout)
+            self.save_settings()
+
+    def logout(self, widget):
+        self.service.logout()
+        log.debug("Logged out")
+        self.auth.set_label("Log in")
+        self.auth.disconnect(self.auth_id)
+        self.auth_id = self.auth.connect("activate", self.login)
+        self.save_settings()
+
     def grab_screen_area(self, widget):
-        ScreenGrabber(self.select_area_event_handler)
+        ScreenGrabber(self.select_area_event_handler, log)
 
     def select_area_event_handler(self, widget, event, selector):
         if event.type == gtk.gdk.MOTION_NOTIFY:
@@ -317,112 +312,6 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber.toggle_window()
 
     ##########################################################################
-    def write(self, string):
-        self.response += string
-
-    def login(self, widget):
-        def auth_response(dialog, resp_id):
-            if resp_id == gtk.RESPONSE_OK:
-                self.response = ''
-                pin = dialog.pin_entry.get_text()
-                curl = pycurl.Curl()
-                curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-                curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-                curl.setopt(pycurl.POST, 1)
-                curl.setopt(pycurl.HTTPPOST,
-                            [('client_id', CLIENT_ID), ('client_secret', CLIENT_SECRET), ('grant_type', 'pin'),
-                             ('pin', pin)])
-                curl.setopt(pycurl.WRITEFUNCTION, self.write)
-                curl.perform()
-                resp = json.loads(self.response)
-                if "access_token" in resp:
-                    global ACCESS_TOKEN
-                    global REFRESH_TOKEN
-                    global USERNAME
-                    ACCESS_TOKEN = str(resp["access_token"])
-                    REFRESH_TOKEN = str(resp["refresh_token"])
-                    self.refresh_access_token() # is done to get username
-                    string = "Log out"
-                    if USERNAME:
-                        string = string + " (" + USERNAME + ")"
-                    self.auth.set_label(string)
-                    self.auth.disconnect(self.auth_id)
-                    self.auth_id = self.auth.connect("activate", self.logout)
-                    self.save_settings()
-
-        #def auth_response(dialog, resp_id)
-        # Open browser windows and prompt for access to Imgur account
-        webbrowser.open(
-            "https://api.imgur.com/oauth2/authorize?client_id=" + CLIENT_ID + "&response_type=pin&state=APPLICATION_STATE")
-        # Window to enter PIN from the site
-        pin_dialog = gtk.Dialog(title="Enter PIN",
-                                flags=gtk.DIALOG_DESTROY_WITH_PARENT,
-                                buttons=(
-                                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK))
-        pin_dialog.set_modal(False)
-        pin_dialog.set_decorated(True)
-        pin_dialog.pin_entry = pin_entry = gtk.Entry()
-        pin_entry.show()
-        pin_dialog.vbox.add(pin_entry)
-        pin_dialog.connect('response', auth_response)
-        pin_dialog.run()
-        pin_dialog.destroy()
-
-    def logout(self, widget = None):
-        global ACCESS_TOKEN
-        global REFRESH_TOKEN
-        global USERNAME
-        ACCESS_TOKEN = ""
-        REFRESH_TOKEN = ""
-        USERNAME = ""
-        self.auth.set_label("Log in")
-        self.auth.disconnect(self.auth_id)
-        self.auth_id = self.auth.connect("activate", self.login)
-        self.save_settings()
-
-    def refresh_access_token(self):
-        curl = pycurl.Curl()
-        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-        curl.setopt(pycurl.POST, 1)
-        global ACCESS_TOKEN
-        global REFRESH_TOKEN
-        global USERNAME
-        if REFRESH_TOKEN:
-            self.response = ""
-            curl.setopt(pycurl.HTTPPOST,
-                        [('refresh_token', REFRESH_TOKEN),
-                         ('client_id', CLIENT_ID),
-                         ('client_secret', CLIENT_SECRET),
-                         ('grant_type', 'refresh_token')])
-            curl.setopt(pycurl.WRITEFUNCTION, self.write)
-            curl.perform()
-            log.debug("Response: " + self.response)
-            resp = json.loads(self.response)
-            if 'access_token' in resp:
-                ACCESS_TOKEN = str(resp['access_token'])
-                REFRESH_TOKEN = str(resp['refresh_token'])
-                USERNAME = str(resp['account_username'])
-                self.save_settings()
-                return True
-            else:
-                self.logout()
-                # Inform the user that we have logged out
-                dialog = gtk.MessageDialog(parent=None,
-                                           flags=0,
-                                           type=gtk.MESSAGE_WARNING,
-                                           buttons=gtk.BUTTONS_OK,
-                                           message_format=None)
-                dialog.set_title("fileshare")
-                dialog.set_markup("Authentication failed!")
-                dialog.format_secondary_text("Please, log in again. Otherwise your images will be uploaded anonymously.")
-                dialog.run()
-                dialog.destroy()
-        return False
-
-
-    ##########################################################################
     def about(self, widget):
         log.debug("Indicator: open About dialog")
         self.about_dialog = gtk.AboutDialog()
@@ -438,7 +327,6 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
         self.about_dialog.connect("response", self.about_close)
         self.about_dialog.show()
-
     #def about(self, widget)
 
     def about_close(self, widget, event=None):
@@ -451,255 +339,7 @@ class IndicatorFileshare(threading.Thread):
         self.save_settings()
         log.debug("Indicator: Quitting")
         gtk.main_quit()
-
 #class IndicatorFileshare(threading.Thread)
-
-
-##############################################################################
-class FileGrabber():
-    """ Applet for drag'n'drop files to. The file is automatically uploaded to
-        the hosting and the result URL is copied into the clipboard """
-
-    def __init__(self, parent=None):
-        self.cb = gtk.Clipboard()
-        self.parent = parent
-        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.set_decorated(False)
-        self.window.set_opacity(0.5)
-        self.window.set_size_request(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE)
-        self.window.set_resizable(False)
-        self.window.drag_dest_set(0, [], 0)
-
-        self.window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
-        width, height = self.window.get_size()
-        self.window.move(gtk.gdk.screen_width() - width - 20, height)
-
-        # Add main widget for grabbing files
-        self.image = gtk.Image()
-        pixbuf = gtk.gdk.pixbuf_new_from_file("/usr/local/share/indicator-fileshare/media/imgur.png")
-        scaled_buf = pixbuf.scale_simple(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE, gtk.gdk.INTERP_BILINEAR)
-        self.image.set_from_pixbuf(scaled_buf)
-        self.image.show()
-        self.window.add(self.image)
-        self.window.connect('drag_motion', self.window_drag_motion)
-        self.window.connect('drag_drop', self.window_drag_drop)
-        self.window.connect('drag_data_received', self.window_drag_data_received)
-        self.isShown = False
-
-    def toggle_window(self):
-        if self.isShown:
-            self.window.hide()
-            self.isShown = False
-        else:
-            self.window.show()
-            self.window.set_keep_above(True)    # This may not work: it depends on the window manager
-            self.isShown = True
-
-    def window_drag_motion(self, wid, context, x, y, time):
-        context.drag_status(gtk.gdk.ACTION_COPY, time)
-        return True      # True means "I accept this data"
-
-    def window_drag_drop(self, wid, context, x, y, time):
-        wid.drag_get_data(context, context.targets[-1], time)
-        return True
-
-    def window_drag_data_received(self, wid, context, x, y, data, info, time):
-        file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
-        context.finish(True, False, time)
-        self.upload_file(file_to_upload, False)
-
-    def upload_file(self, image, remove=False):
-        def upload_callback(image, remove):
-            log.debug("Uploading file: " + image)
-            self.response = ''
-            self.base64String = self.img2base64(image)
-            self.curl = curl = pycurl.Curl()
-            curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image')
-            curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-            curl.setopt(pycurl.POST, 1)
-            global ACCESS_TOKEN
-            if ACCESS_TOKEN:
-                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Bearer " + ACCESS_TOKEN])
-            else:
-                # Anonymous upload
-                curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + CLIENT_ID])
-            curl.setopt(pycurl.HTTPPOST, [('image', self.base64String)])
-            curl.setopt(pycurl.WRITEFUNCTION, self.write)
-            self.curl.perform()
-            log.debug("Response: " + self.response)
-            if ACCESS_TOKEN and json.loads(self.response)['status'] == 403:
-                # Refresh auth token and repeat
-                if self.parent.refresh_access_token():
-                    return upload_callback(image, remove)
-            else:
-                self.show_result()
-            if remove:
-                os.remove(image)
-            return False  # return False not to be called again as callback
-
-        # convert file name to utf-8
-        file_to_upload = image.decode('UTF-8').encode('UTF-8')
-        # convert %80%20 and other to cyrillic symbols and spaces
-        file_to_upload = urllib2.unquote(file_to_upload)
-        gobject.idle_add(upload_callback, file_to_upload, remove)
-    #def upload_file(self, image, remove = False)
-
-
-    def img2base64(self, image):
-        with open(image, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read())
-        return encoded_string
-
-    def write(self, string):
-        self.response += string
-
-    def show_result(self):
-        dict = json.loads(self.response)
-        try:
-            url = dict['data']['link']
-        except:
-            return
-        self.cb.set_text(url)
-        self.cb.store()
-        # create a window with result URL
-        result_window = gtk.Window()
-        result_window.set_decorated(False)
-        result_window.set_opacity(0.9)
-        result_window.set_resizable(False)
-        result_window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
-        width, height = result_window.get_size()
-        result_window.move(gtk.gdk.screen_width() - width - 20, height)
-        l = gtk.Label()
-        l.set_text(url + " copied")
-        l.show()
-        result_window.add(l)
-        result_window.show()
-        # close the window with URL in 5 seconds
-        gobject.timeout_add(5000, result_window.hide)
-        #def show_result(self)
-
-#class FileGrabber()
-
-
-##############################################################################
-class ScreenGrabber(threading.Thread):
-    def __init__(self, eventHandler):
-        threading.Thread.__init__(self)
-        log.debug("ScreenGrabber: creating")
-        self.selected = False
-        root = gtk.gdk.get_default_root_window()
-        self.screenWidth, self.screenHeight = root.get_size()
-        width, height = self.screenWidth, self.screenHeight
-        self.drawingWindow = drawingWindow = gtk.Window(gtk.WINDOW_POPUP)
-        drawingWindow.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_SPLASHSCREEN)
-        drawingWindow.set_decorated(False)
-        drawingWindow.set_has_frame(False)
-        drawingWindow.set_skip_taskbar_hint(True)
-        drawingWindow.set_skip_pager_hint(True)
-        drawingWindow.set_can_focus(True)
-        drawingWindow.set_accept_focus(True)
-        drawingWindow.set_keep_above(True)
-        drawingWindow.set_default_size(width, height)
-        drawingWindow.resize(width, height)
-        drawingWindow.move(0, 0)
-        rgba = drawingWindow.get_screen().get_rgba_colormap()
-        drawingWindow.set_app_paintable(True)
-        drawingWindow.set_colormap(rgba)
-        drawingWindow.set_events(gtk.gdk.POINTER_MOTION_MASK |
-                                 gtk.gdk.BUTTON_PRESS_MASK |
-                                 gtk.gdk.BUTTON_RELEASE_MASK |
-                                 gtk.gdk.KEY_PRESS_MASK)
-        drawingWindow.show()
-        drawingWindow.present()
-        gtk.gdk.keyboard_grab(drawingWindow.window)
-        cursor = gtk.gdk.Cursor(gtk.gdk.CROSSHAIR)
-        drawingWindow.window.set_cursor(cursor)
-        self.cursor = 'crosshair'
-        drawingWindow.connect_after('expose-event', self.expose_event)
-        drawingWindow.connect('button-press-event', eventHandler, self)
-        drawingWindow.connect('button-release-event', eventHandler, self)
-        drawingWindow.connect('key-press-event', eventHandler, self)
-        drawingWindow.connect('motion-notify-event', eventHandler, self)
-
-    def __del__(self):
-        if hasattr(self, 'deleted'):
-            return True
-        ctx = self.drawingWindow.window.cairo_create()
-        self.clear(ctx)
-        gtk.gdk.keyboard_ungrab()
-        # Give cairo some time to clear the screen before the destruction of the window
-        gobject.timeout_add(50, self.drawingWindow.destroy)
-        if self.selected and hasattr(self, 'completeHandler'):
-            x = int(round(min(self.selection_x_start, self.selection_x_end)))
-            y = int(round(min(self.selection_y_start, self.selection_y_end)))
-            width = int(round(abs(self.selection_x_end - self.selection_x_start)))
-            height = int(round(abs(self.selection_y_end - self.selection_y_start)))
-            # Do not take screen shot if grabbed area is too small
-            if width > 10 and height > 10:
-                gobject.timeout_add(150, self.completeHandler, x, y, width, height)
-            else:
-                log.debug("ScreenGrabber: selected area is too small")
-        self.deleted = True
-
-    def start_selection(self, x, y):
-        self.selection_x_start = x
-        self.selection_y_start = y
-        self.selected = True
-        self.dark_fill()
-
-    def stop_selection(self, x, y):
-        self.selection_x_end = x
-        self.selection_y_end = y
-        self.drawingWindow.present()
-
-    def redraw(self, x, y):
-        if not self.selected:
-            return False
-            # recalculate the selected rectangle
-        rLefx = min(self.selection_x_start, x)
-        rTopy = min(self.selection_y_start, y)
-        rRigx = max(self.selection_x_start, x)
-        rBoty = max(self.selection_y_start, y)
-        width = rRigx - rLefx
-        height = rBoty - rTopy
-        ctx = self.drawingWindow.window.cairo_create()
-        # shade the whole screen
-        ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
-        ctx.clip()
-        ctx.new_path()
-        ctx.set_operator(cairo.OPERATOR_SOURCE)
-        ctx.set_antialias(cairo.ANTIALIAS_NONE)
-        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
-        ctx.paint()
-        # draw border
-        ctx.set_source_rgba(255.0, 255.0, 255.0, 0.7)
-        ctx.rectangle(rLefx, rTopy, width, height)
-        ctx.fill()
-        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.0)
-        ctx.rectangle(rLefx + 1, rTopy + 1, width - 2, height - 2)
-        ctx.fill()
-
-    def clear(self, ctx):
-        ctx.set_operator(cairo.OPERATOR_CLEAR)
-        ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
-        ctx.fill()
-        return ctx
-
-    def dark_fill(self):
-        ctx = self.drawingWindow.window.cairo_create()
-        ctx.set_operator(cairo.OPERATOR_SOURCE)
-        ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
-        ctx.paint()
-
-    def expose_event(self, widget, event):
-        self.dark_fill()
-        if self.selected:
-            self.redraw(self.selection_x_end, self.selection_y_end)
-
-    def set_complete_handler(self, completeHandler):
-        self.completeHandler = completeHandler
-
-#class ScreenGrabber(threading.Thread)
 
 
 ##############################################################################
