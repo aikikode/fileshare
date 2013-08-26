@@ -44,6 +44,7 @@ class UploadBase(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.USERNAME = ""
+        self.URL = ""
     @abstractmethod
     def login(self):
         pass
@@ -69,10 +70,11 @@ class Imgur(UploadBase):
         self.CLIENT_SECRET = "1cc11d1006c90d0e184daa29085a015e24cd6705"
         self.indicator = indicator
         self.log = log
+        self.URL = 'https://imgur.com/'
         try:
-            self.ACCESS_TOKEN = config.get("AUTH", "access_token")
-            self.REFRESH_TOKEN = config.get("AUTH", "refresh_token")
-            self.USERNAME = config.get("AUTH", "username")
+            self.ACCESS_TOKEN = config.get("IMGUR", "access_token")
+            self.REFRESH_TOKEN = config.get("IMGUR", "refresh_token")
+            self.USERNAME = config.get("IMGUR", "username")
         except Exception as e:
             self.log.error("Error: %s" % str(e))
             self.ACCESS_TOKEN = ""
@@ -124,11 +126,11 @@ class Imgur(UploadBase):
         return True if self.ACCESS_TOKEN else False
 
     def save_settings(self, config):
-        if not config.has_section("AUTH"):
-            config.add_section("AUTH")
-        config.set("AUTH", "access_token", self.ACCESS_TOKEN)
-        config.set("AUTH", "refresh_token", self.REFRESH_TOKEN)
-        config.set("AUTH", "username", self.USERNAME)
+        if not config.has_section("IMGUR"):
+            config.add_section("IMGUR")
+        config.set("IMGUR", "access_token", self.ACCESS_TOKEN)
+        config.set("IMGUR", "refresh_token", self.REFRESH_TOKEN)
+        config.set("IMGUR", "username", self.USERNAME)
         return config
 
     def refresh_access_token(self):

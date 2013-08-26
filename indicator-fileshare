@@ -44,6 +44,8 @@ if APP_DIR not in sys.path:
 from upload_services import Imgur
 from grabbers import FileGrabber, ScreenGrabber
 
+DEFAULT_SERVICE_NAME = "Imgur"
+
 gobject.threads_init()
 
 VERSION = "0.4.1"
@@ -112,18 +114,23 @@ class IndicatorFileshare(threading.Thread):
         self.create_menu()
 
     def read_settings(self):
-        config = ConfigParser.RawConfigParser()
+        self.config = config = ConfigParser.RawConfigParser()
         try:
             config.read(CONFIG_FILE)
+            self.SERVICE_NAME = config.get("SERVICE", "name")
         except Exception as e:
             log.error("Error: %s" % str(e))
-        self.service = Imgur(self, config, log)
+            self.SERVICE_NAME = DEFAULT_SERVICE_NAME
+        self.service = globals()[self.SERVICE_NAME](self, config, log)
     #def read_settings(self)
 
     def save_settings(self):
-        config = ConfigParser.RawConfigParser()
+        self.config = config = ConfigParser.RawConfigParser()
         try:
             config = self.service.save_settings(config)
+            if not config.has_section("SERVICE"):
+                config.add_section("SERVICE")
+            config.set("SERVICE", "name", self.SERVICE_NAME)
             with open(CONFIG_FILE, 'w+') as configfile:
                 os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
@@ -162,7 +169,7 @@ class IndicatorFileshare(threading.Thread):
         screen_area_grab.show()
 
         ##Open http://imgur.com in the browser
-        open_site_url = gtk.MenuItem("Open Imgur")
+        open_site_url = gtk.MenuItem("Open " + self.SERVICE_NAME)
         self.menu.append(open_site_url)
         open_site_url.connect("activate", self.open_site)
         open_site_url.show()
@@ -190,18 +197,24 @@ class IndicatorFileshare(threading.Thread):
         self.menu.append(breaker)
 
         ##Log in
+        self.login_menu = gtk.Menu()
+        self.imgur_login_menu = gtk.MenuItem("...to Imgur")
+        self.imgur_login_menu.connect("activate", self.login, "Imgur")
+        self.login_menu.append(self.imgur_login_menu)
+        self.login_menu.show_all()
         if not self.service.is_logged_in():
-            self.auth = auth = gtk.MenuItem("Log in")
-            self.auth_id = auth.connect("activate", self.login)
+            self.auth = auth = gtk.MenuItem("Log in...")
+            self.auth.set_submenu(self.login_menu)
         else:
             if not self.service.USERNAME:
                 self.service.refresh_access_token() # is done to get username
-            string = "Log out"
+            string = "Log out (" + self.SERVICE_NAME
             if self.service.USERNAME:
-                string = string + " (" + self.service.USERNAME + ")"
+                string = string + ", " + self.service.USERNAME
+            string += ")"
             self.auth = auth = gtk.MenuItem(string)
             self.auth_id = auth.connect("activate", self.logout)
-        auth.show()
+        auth.show_all()
         self.menu.append(auth)
 
         ##Breaker
@@ -218,24 +231,29 @@ class IndicatorFileshare(threading.Thread):
         self.ind.set_menu(self.menu)
     #def create_menu(self)
 
-    def login(self, widget):
+    def login(self, widget, *data):
+        self.config.read(CONFIG_FILE)
+        self.SERVICE_NAME = data[0]
+        self.service = globals()[self.SERVICE_NAME](self, self.config, log)
         self.service.login()
         if self.service.is_logged_in():
             log.debug("Logged in")
-            string = "Log out"
+            string = "Log out (" + self.SERVICE_NAME
             if self.service.USERNAME:
-                string = string + " (" + self.service.USERNAME + ")"
+                string = string + ", " + self.service.USERNAME
+            string += ")"
             self.auth.set_label(string)
-            self.auth.disconnect(self.auth_id)
+            self.auth.remove_submenu()
             self.auth_id = self.auth.connect("activate", self.logout)
             self.save_settings()
 
     def logout(self, widget):
         self.service.logout()
         log.debug("Logged out")
-        self.auth.set_label("Log in")
+        self.auth.set_label("Log in...")
         self.auth.disconnect(self.auth_id)
-        self.auth_id = self.auth.connect("activate", self.login)
+        self.imgur_login_menu.connect("activate", self.login, "Imgur")
+        self.auth.set_submenu(self.login_menu)
         self.save_settings()
 
     def grab_screen_area(self, widget):
@@ -305,7 +323,7 @@ class IndicatorFileshare(threading.Thread):
 
     ##########################################################################
     def open_site(self, widget):
-        webbrowser.open('https://imgur.com/')
+        webbrowser.open(self.service.URL)
 
     ##########################################################################
     def toggle_file_grabber(self, widget):
