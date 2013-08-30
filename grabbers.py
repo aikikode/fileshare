@@ -55,10 +55,11 @@ class FileGrabber():
         self.window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
         width, height = self.window.get_size()
         self.window.move(gtk.gdk.screen_width() - width - 20, height)
+        self.app_icon = self.indicator.app_icon
 
         # Add main widget for grabbing files
         self.image = gtk.Image()
-        pixbuf = gtk.gdk.pixbuf_new_from_file("/usr/local/share/indicator-fileshare/media/app_icon.png")
+        pixbuf = gtk.gdk.pixbuf_new_from_file(self.app_icon)
         scaled_buf = pixbuf.scale_simple(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE, gtk.gdk.INTERP_BILINEAR)
         self.image.set_from_pixbuf(scaled_buf)
         self.image.show()
@@ -88,7 +89,7 @@ class FileGrabber():
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
         file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
         context.finish(True, False, time)
-        self.upload_file(file_to_upload, False)
+        self.upload_file(file_to_upload, remove=False)
 
     def upload_file(self, image, remove=False):
         # convert file name to utf-8
@@ -100,22 +101,7 @@ class FileGrabber():
     def show_result(self, url):
         self.cb.set_text(url)
         self.cb.store()
-        # create a window with result URL
-        result_window = gtk.Window()
-        result_window.set_decorated(False)
-        result_window.set_opacity(0.9)
-        result_window.set_resizable(False)
-        result_window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
-        width, height = result_window.get_size()
-        result_window.move(gtk.gdk.screen_width() - width - 20, height)
-        l = gtk.Label()
-        l.set_text(url + " copied")
-        l.show()
-        result_window.add(l)
-        result_window.show()
-        # close the window with URL in 5 seconds
-        gobject.timeout_add(5000, result_window.hide)
-        #def show_result(self)
+        self.indicator.show_notification(url)
 #class FileGrabber()
 
 

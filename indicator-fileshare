@@ -34,6 +34,7 @@ import threading
 import webbrowser
 import logging, logging.handlers
 import commands
+import pynotify
 # for delayed actions
 import gobject
 
@@ -41,14 +42,14 @@ APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
     sys.path.append(APP_DIR)
 
-from upload_services import Imgur
+from upload_services import Imgur, Droplr
 from grabbers import FileGrabber, ScreenGrabber
 
-DEFAULT_SERVICE_NAME = "Imgur"
+DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploads
 
 gobject.threads_init()
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -103,13 +104,14 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.read_settings()
         self.check_autostart()
         self.ind = appindicator.Indicator("fileshare-services-client",
                                           "indicator-fileshare",
                                           appindicator.CATEGORY_APPLICATION_STATUS)
         self.ind.set_status(appindicator.STATUS_ACTIVE)
-        self.ind.set_icon("/usr/local/share/indicator-fileshare/media/app_icon.png")
+        self.ind.set_icon(self.app_icon)
         self.file_grabber = FileGrabber(self)
         self.create_menu()
 
@@ -159,6 +161,9 @@ class IndicatorFileshare(threading.Thread):
         #if not os.path.isfile(autostart_path)
     #def check_autostart(self)
 
+    def get_version(self):
+        return VERSION
+
     def create_menu(self):
         self.menu = gtk.Menu()
         # Create menu items
@@ -168,8 +173,8 @@ class IndicatorFileshare(threading.Thread):
         screen_area_grab.connect("activate", self.grab_screen_area)
         screen_area_grab.show()
 
-        ##Open http://imgur.com in the browser
-        open_site_url = gtk.MenuItem("Open " + self.SERVICE_NAME)
+        ##Open current service site in the browser
+        self.open_site_url = open_site_url = gtk.MenuItem("Open " + self.SERVICE_NAME)
         self.menu.append(open_site_url)
         open_site_url.connect("activate", self.open_site)
         open_site_url.show()
@@ -201,16 +206,19 @@ class IndicatorFileshare(threading.Thread):
         self.imgur_login_menu = gtk.MenuItem("...to Imgur")
         self.imgur_login_menu.connect("activate", self.login, "Imgur")
         self.login_menu.append(self.imgur_login_menu)
+        self.droplr_login_menu = gtk.MenuItem("...to Droplr")
+        self.droplr_login_menu.connect("activate", self.login, "Droplr")
+        self.login_menu.append(self.droplr_login_menu)
         self.login_menu.show_all()
         if not self.service.is_logged_in():
             self.auth = auth = gtk.MenuItem("Log in...")
             self.auth.set_submenu(self.login_menu)
         else:
-            if not self.service.USERNAME:
+            if not self.service.get_username():
                 self.service.refresh_access_token() # is done to get username
             string = "Log out (" + self.SERVICE_NAME
-            if self.service.USERNAME:
-                string = string + ", " + self.service.USERNAME
+            if self.service.get_username():
+                string = string + ", " + self.service.get_username()
             string += ")"
             self.auth = auth = gtk.MenuItem(string)
             self.auth_id = auth.connect("activate", self.logout)
@@ -231,25 +239,35 @@ class IndicatorFileshare(threading.Thread):
         self.ind.set_menu(self.menu)
     #def create_menu(self)
 
+    def set_default_service(self):
+        self.SERVICE_NAME = DEFAULT_SERVICE_NAME
+        self.service = globals()[self.SERVICE_NAME](self, self.config, log)
+        self.open_site_url.set_label("Open " + self.SERVICE_NAME)
+
     def login(self, widget, *data):
         self.config.read(CONFIG_FILE)
         self.SERVICE_NAME = data[0]
+        self.open_site_url.set_label("Open " + self.SERVICE_NAME)
         self.service = globals()[self.SERVICE_NAME](self, self.config, log)
         self.service.login()
         if self.service.is_logged_in():
             log.debug("Logged in")
             string = "Log out (" + self.SERVICE_NAME
-            if self.service.USERNAME:
-                string = string + ", " + self.service.USERNAME
+            if self.service.get_username():
+                string = string + ", " + self.service.get_username()
             string += ")"
             self.auth.set_label(string)
             self.auth.remove_submenu()
             self.auth_id = self.auth.connect("activate", self.logout)
             self.save_settings()
+        else:
+            self.set_default_service()
+        return False
 
     def logout(self, widget):
         self.service.logout()
         log.debug("Logged out")
+        self.set_default_service()
         self.auth.set_label("Log in...")
         self.auth.disconnect(self.auth_id)
         self.imgur_login_menu.connect("activate", self.login, "Imgur")
@@ -283,9 +301,9 @@ class IndicatorFileshare(threading.Thread):
         self.preview_screen_of_area()
 
     def upload_from_pixmap(self):
-        (fp, temp_img_file) = tempfile.mkstemp()
+        (fp, temp_img_file) = tempfile.mkstemp('.png')
         self.gtk_screen_image.save(temp_img_file, "png")
-        self.file_grabber.upload_file(temp_img_file, True)
+        self.file_grabber.upload_file(temp_img_file, remove=True)
 
     def preview_screen_of_area(self):
         def response(dialog, resp_id):
@@ -321,9 +339,14 @@ class IndicatorFileshare(threading.Thread):
         preview_dialog.run()
         preview_dialog.destroy()
 
+    def show_notification(self, message):
+        pynotify.init("Fileshare")
+        notify = pynotify.Notification("Fileshare", message, self.app_icon)
+        notify.show()
+
     ##########################################################################
     def open_site(self, widget):
-        webbrowser.open(self.service.URL)
+        webbrowser.open(self.service.get_site_url())
 
     ##########################################################################
     def toggle_file_grabber(self, widget):
@@ -341,8 +364,7 @@ class IndicatorFileshare(threading.Thread):
         ifile.close()
 
         self.about_dialog.set_website("http://aikikode.github.com/fileshare/")
-        logo_path = "/usr/local/share/indicator-fileshare/media/app_icon.png"
-        self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(logo_path))
+        self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(self.app_icon))
         self.about_dialog.connect("response", self.about_close)
         self.about_dialog.show()
     #def about(self, widget)

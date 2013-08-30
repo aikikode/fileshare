@@ -1,3 +1,8 @@
+v0.5.0
+  New Features:
+  - Droplr account support
+
+
 v0.4.1
   Fixes:
   - Split functionality into multiple files for expandability
