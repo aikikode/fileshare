@@ -98,7 +98,7 @@ class Imgur(UploadBase):
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
                 curl = pycurl.Curl()
-                curl.setopt(pycurl._url, 'https://api.imgur.com/oauth2/token')
+                curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
                 curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
                 curl.setopt(pycurl.POST, 1)
                 curl.setopt(pycurl.HTTPPOST,
@@ -152,7 +152,7 @@ class Imgur(UploadBase):
 
     def refresh_access_token(self):
         curl = pycurl.Curl()
-        curl.setopt(pycurl._url, 'https://api.imgur.com/oauth2/token')
+        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
         curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
         curl.setopt(pycurl.POST, 1)
         if self._refresh_token:
@@ -197,7 +197,7 @@ class Imgur(UploadBase):
         self.response = ''
         self.base64String = img2base64(image)
         self.curl = curl = pycurl.Curl()
-        curl.setopt(pycurl._url, 'https://api.imgur.com/3/image')
+        curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image')
         curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
         curl.setopt(pycurl.POST, 1)
         if self._access_token:
@@ -355,7 +355,7 @@ class Droplr(UploadBase):
         if content_type:
             headers["Content-Type"] = content_type
 
-        curl.setopt(pycurl._url, url)
+        curl.setopt(pycurl.URL, url)
         curl.setopt(pycurl.USERAGENT, 'Fileshare %s' % self.indicator.get_version())
         curl.setopt(pycurl.HTTPHEADER, [str(x) + ": " + str(headers.get(x)) for x in headers.keys()])
         curl.setopt(pycurl.HEADER, True)
