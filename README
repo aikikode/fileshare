@@ -10,8 +10,11 @@ Fileshare applet features:
  - select screen area to grab, show preview and upload
  - link to the result image is automatically stored in the buffer, just paste
    to share the link
- - Imgur and Droplr account support: run 'Log in' menu item to connect application
-   to your account
+ - Imgur and Droplr account support: run 'Log in' menu item to connect
+   application to your account (note, that to use Droplr account you'll need
+   to request application keys from the developers, see
+   http://help.droplr.com/customer/portal/articles/1014091-introduction for
+   more details)
 
 To install Fileshare run
 ./build_deb.sh
