@@ -463,7 +463,7 @@ if __name__ == "__main__":
     if IS_LINUX:
         myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
     else:
-        myapp = SingleInstance("/tmp/indicator-fileshare.pid")
+        myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare.pid")
     # Check is another instance of same program running
     if myapp.is_already_running():
         log.info("Another instance of this program is already running")
