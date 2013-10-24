@@ -29,14 +29,19 @@ _author__ = 'aikikode'
 import sys, os, stat, shutil, tempfile
 import ConfigParser
 import gtk
-import appindicator
 import threading
 import webbrowser
 import logging, logging.handlers
 import commands
-import pynotify
 # for delayed actions
 import gobject
+
+if os.name == "nt":
+    IS_LINUX = False
+else:
+    IS_LINUX = True
+    import appindicator
+    import pynotify
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -49,7 +54,7 @@ DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploa
 
 gobject.threads_init()
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -104,16 +109,31 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        if IS_LINUX:
+            self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        else:
+            self.app_icon = "./icons/app_icon.png"
         self.read_settings()
         self.check_autostart()
-        self.ind = appindicator.Indicator("fileshare-services-client",
-                                          "indicator-fileshare",
-                                          appindicator.CATEGORY_APPLICATION_STATUS)
-        self.ind.set_status(appindicator.STATUS_ACTIVE)
-        self.ind.set_icon(self.app_icon)
+        if IS_LINUX:
+            self.ind = appindicator.Indicator("fileshare-services-client",
+                                              "indicator-fileshare",
+                                              appindicator.CATEGORY_APPLICATION_STATUS)
+            self.ind.set_status(appindicator.STATUS_ACTIVE)
+            self.ind.set_icon(self.app_icon)
+        else:
+            self.ind = gtk.StatusIcon()
+            self.ind.set_from_file(self.app_icon)
+            self.ind.set_title("Fileshare")
+            self.ind.set_name("Fileshare")
+            self.ind.set_tooltip_text("Fileshare")
+            self.ind.connect("popup-menu", self.show_ind_menu)
         self.file_grabber = FileGrabber(self)
         self.create_menu()
+
+    def show_ind_menu(self, icon, button, time):
+        self.menu.show_all()
+        self.menu.popup(None, None, gtk.status_icon_position_menu, button, time, self.ind)
 
     def read_settings(self):
         self.config = config = ConfigParser.RawConfigParser()
@@ -236,7 +256,8 @@ class IndicatorFileshare(threading.Thread):
         quit.show()
         self.menu.append(quit)
 
-        self.ind.set_menu(self.menu)
+        if IS_LINUX:
+            self.ind.set_menu(self.menu)
     #def create_menu(self)
 
     def set_default_service(self):
@@ -267,6 +288,7 @@ class IndicatorFileshare(threading.Thread):
     def logout(self, widget):
         self.service.logout()
         log.debug("Logged out")
+        self.save_settings()
         self.set_default_service()
         self.auth.set_label("Log in...")
         self.auth.disconnect(self.auth_id)
@@ -340,9 +362,26 @@ class IndicatorFileshare(threading.Thread):
         preview_dialog.destroy()
 
     def show_notification(self, message):
-        pynotify.init("Fileshare")
-        notify = pynotify.Notification("Fileshare", message, self.app_icon)
-        notify.show()
+        if IS_LINUX:
+            pynotify.init("Fileshare")
+            notify = pynotify.Notification("Fileshare", message, self.app_icon)
+            notify.show()
+        else:
+            popup = gtk.Window(gtk.WINDOW_POPUP)
+            popup.set_decorated(False)
+            popup.set_has_frame(False)
+            popup.set_skip_taskbar_hint(True)
+            popup.set_skip_pager_hint(True)
+            popup.set_can_focus(False)
+            popup.set_accept_focus(False)
+            popup.set_keep_above(True)
+            popup.move(10, 10)
+            popup.set_opacity(0.9)
+            popup_message = gtk.Label("Fileshare: " + message)
+            popup.add(popup_message)
+            popup.show_all()
+            gobject.timeout_add(5000, popup.destroy)
+
 
     ##########################################################################
     def open_site(self, widget):
@@ -359,7 +398,10 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_name("Fileshare Indicator")
         self.about_dialog.set_version(VERSION)
 
-        ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
+        if IS_LINUX:
+            ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
+        else:
+            ifile = open("./AUTHORS", "r")
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
@@ -408,7 +450,10 @@ if __name__ == "__main__":
     log.info("Fileshare Indicator version %s" % VERSION)
 
     # Single instance stuff for fileshare indicator
-    myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
+    if IS_LINUX:
+        myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
+    else:
+        myapp = SingleInstance("/tmp/indicator-fileshare.pid")
     # Check is another instance of same program running
     if myapp.is_already_running():
         log.info("Another instance of this program is already running")

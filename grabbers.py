@@ -127,9 +127,11 @@ class ScreenGrabber(threading.Thread):
         drawingWindow.set_default_size(width, height)
         drawingWindow.resize(width, height)
         drawingWindow.move(0, 0)
-        rgba = drawingWindow.get_screen().get_rgba_colormap()
         drawingWindow.set_app_paintable(True)
-        drawingWindow.set_colormap(rgba)
+        drawingWindow.set_opacity(0.5)
+        rgba = drawingWindow.get_screen().get_rgba_colormap()
+        if rgba:
+            drawingWindow.set_colormap(rgba)
         drawingWindow.set_events(gtk.gdk.POINTER_MOTION_MASK |
                                  gtk.gdk.BUTTON_PRESS_MASK |
                                  gtk.gdk.BUTTON_RELEASE_MASK |

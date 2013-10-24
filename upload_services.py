@@ -31,7 +31,6 @@ import webbrowser
 import os
 import threading
 # for uploading
-import pycurl
 import base64
 # for parsing server response
 import json
@@ -40,6 +39,7 @@ from abc import ABCMeta, abstractmethod
 import hashlib, hmac
 import time
 import urllib
+import urllib2
 import mimetypes
 # for delayed actions
 import gobject
@@ -97,15 +97,13 @@ class Imgur(UploadBase):
             if resp_id == gtk.RESPONSE_OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
-                curl = pycurl.Curl()
-                curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-                curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-                curl.setopt(pycurl.POST, 1)
-                curl.setopt(pycurl.HTTPPOST,
-                            [('client_id', self._client_id), ('client_secret', self._client_secret), ('grant_type', 'pin'),
-                             ('pin', pin)])
-                curl.setopt(pycurl.WRITEFUNCTION, self.write)
-                curl.perform()
+                body = dict(client_id     = self._client_id,
+                            client_secret = self._client_secret,
+                            grant_type    = 'pin',
+                            pin           = pin)
+                req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
+                for line in urllib2.urlopen(req):
+                    self.response = line
                 resp = json.loads(self.response)
                 if "access_token" in resp:
                     self._access_token = str(resp["access_token"])
@@ -151,19 +149,14 @@ class Imgur(UploadBase):
         return config
 
     def refresh_access_token(self):
-        curl = pycurl.Curl()
-        curl.setopt(pycurl.URL, 'https://api.imgur.com/oauth2/token')
-        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-        curl.setopt(pycurl.POST, 1)
         if self._refresh_token:
-            self.response = ""
-            curl.setopt(pycurl.HTTPPOST,
-                        [('refresh_token', self._refresh_token),
-                         ('client_id', self._client_id),
-                         ('client_secret', self._client_secret),
-                         ('grant_type', 'refresh_token')])
-            curl.setopt(pycurl.WRITEFUNCTION, self.write)
-            curl.perform()
+            body = dict(client_id     = self._client_id,
+                        refresh_token = self._refresh_token,
+                        client_secret = self._client_secret,
+                        grant_type    = 'refresh_token')
+            req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
+            for line in urllib2.urlopen(req):
+                self.response = line
             self.log.debug("Response: " + self.response)
             resp = json.loads(self.response)
             if 'access_token' in resp:
@@ -196,32 +189,32 @@ class Imgur(UploadBase):
         self.log.debug("Uploading file: " + image)
         self.response = ''
         self.base64String = img2base64(image)
-        self.curl = curl = pycurl.Curl()
-        curl.setopt(pycurl.URL, 'https://api.imgur.com/3/image')
-        curl.setopt(pycurl.USERAGENT, 'Mozilla/5.0 Fileshare')
-        curl.setopt(pycurl.POST, 1)
         if self._access_token:
-            curl.setopt(pycurl.HTTPHEADER, ["Authorization: Bearer " + self._access_token])
+            header = { 'Authorization': 'Bearer ' + self._access_token }
         else:
             # Anonymous upload
-            curl.setopt(pycurl.HTTPHEADER, ["Authorization: Client-ID " + self._client_id])
-        curl.setopt(pycurl.HTTPPOST, [('image', self.base64String)])
-        curl.setopt(pycurl.WRITEFUNCTION, self.write)
-        self.curl.perform()
+            header = { 'Authorization': 'Client-ID ' + self._client_id }
+        body = dict(image = self.base64String)
+        req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(body), header)
+        for line in urllib2.urlopen(req):
+            self.response = line
         self.log.debug("Response: " + self.response)
         if self._access_token and json.loads(self.response)['status'] == 403:
             # Refresh auth token and repeat
             if self.indicator.service.refresh_access_token():
                 return self.upload_callback(image, remove)
         else:
-            dict = json.loads(self.response)
             try:
-                url = dict['data']['link']
+                resp_dict = json.loads(self.response)
+                url = resp_dict['data']['link']
                 self.indicator.file_grabber.show_result(url)
             except Exception as e:
                 self.log.error("Error: %s" % str(e))
         if remove:
-            os.remove(image)
+            try:
+                os.remove(image)
+            except:
+                self.log.debug("Error: unable to remove the file: " + image)
         return False  # return False not to be called again as callback
 
     def logout(self):
@@ -340,7 +333,6 @@ class Droplr(UploadBase):
 
     def perform_request(self, method, uri, date, content_type, data, params):
         self.response = ''
-        curl = pycurl.Curl()
         string_to_sign = "%s /%s.json HTTP/1.1\n%s\n%s" % (method, uri, content_type, date)
         signature = self.create_signature(string_to_sign)
 
@@ -355,21 +347,20 @@ class Droplr(UploadBase):
         if content_type:
             headers["Content-Type"] = content_type
 
-        curl.setopt(pycurl.URL, url)
-        curl.setopt(pycurl.USERAGENT, 'Fileshare %s' % self.indicator.get_version())
-        curl.setopt(pycurl.HTTPHEADER, [str(x) + ": " + str(headers.get(x)) for x in headers.keys()])
-        curl.setopt(pycurl.HEADER, True)
+        req = urllib2.Request(url, headers=headers)
         if data:
-            curl.setopt(pycurl.POSTFIELDS, data)
-        curl.setopt(pycurl.WRITEFUNCTION, self.write)
-        curl.setopt(pycurl.CUSTOMREQUEST, method)
-        curl.perform()
+            req.add_data(urllib.urlencode(data))
+        for line in urllib2.urlopen(req):
+            self.response = line
         self.log.debug("Response: " + self.response)
         return Droplr.DroplrResponse(self.response)
 
     def are_credentials_ok(self):
-        response = self.perform_request('GET', 'account', str(int(time.time())), None, None, None)
-        return not response.is_error()
+        try:
+            response = self.perform_request('GET', 'account', str(int(time.time())), None, None, None)
+            return not response.is_error()
+        except:
+            return False
 
     def upload_callback(self, image, remove):
         def get_data(image):

@@ -16,10 +16,15 @@ Fileshare applet features:
    http://help.droplr.com/customer/portal/articles/1014091-introduction for
    more details)
 
-To install Fileshare run
+To install Fileshare on Linux run
 ./build_deb.sh
 this will create deb package. Install it with command:
 # dpkg -i <deb file>
+
+For Windows users:
+1. Download and install Python 2.x and PyGTK.
+2. Run
+   python ./indicator-fileshare
 
 Special thanks to:
  - Droplr developers for idea
