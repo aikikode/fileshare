@@ -196,9 +196,13 @@ class Imgur(UploadBase):
             header = { 'Authorization': 'Client-ID ' + self._client_id }
         body = dict(image = self.base64String)
         req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(body), header)
-        for line in urllib2.urlopen(req):
-            self.response = line
-        self.log.debug("Response: " + self.response)
+        try:
+            for line in urllib2.urlopen(req):
+                self.response = line
+            self.log.debug("Response: " + self.response)
+        except:
+            if self._access_token and self.indicator.service.refresh_access_token():
+                return self.upload_callback(image, remove)
         if self._access_token and json.loads(self.response)['status'] == 403:
             # Refresh auth token and repeat
             if self.indicator.service.refresh_access_token():
