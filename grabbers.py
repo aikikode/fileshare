@@ -128,7 +128,7 @@ class ScreenGrabber(threading.Thread):
         drawingWindow.resize(width, height)
         drawingWindow.move(0, 0)
         drawingWindow.set_app_paintable(True)
-        drawingWindow.set_opacity(0.5)
+        drawingWindow.set_opacity(0.3)
         rgba = drawingWindow.get_screen().get_rgba_colormap()
         if rgba:
             drawingWindow.set_colormap(rgba)
