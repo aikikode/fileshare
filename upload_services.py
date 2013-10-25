@@ -200,25 +200,23 @@ class Imgur(UploadBase):
             for line in urllib2.urlopen(req):
                 self.response = line
             self.log.debug("Response: " + self.response)
-        except:
+            if self._access_token and json.loads(self.response)['status'] == 403:
+                raise Exception('Auth token expired')
+        except Exception as e:
+            self.log.error("Error: %s" % str(e))
             if self._access_token and self.indicator.service.refresh_access_token():
                 return self.upload_callback(image, remove)
-        if self._access_token and json.loads(self.response)['status'] == 403:
-            # Refresh auth token and repeat
-            if self.indicator.service.refresh_access_token():
-                return self.upload_callback(image, remove)
-        else:
-            try:
-                resp_dict = json.loads(self.response)
-                url = resp_dict['data']['link']
-                self.indicator.file_grabber.show_result(url)
-            except Exception as e:
-                self.log.error("Error: %s" % str(e))
+        try:
+            resp_dict = json.loads(self.response)
+            url = resp_dict['data']['link']
+            self.indicator.file_grabber.show_result(url)
+        except Exception as e:
+            self.log.error("Error: %s" % str(e))
         if remove:
             try:
                 os.remove(image)
-            except:
-                self.log.debug("Error: unable to remove the file: " + image)
+            except OSError, e:
+                self.log.debug("Error: %s - %s" % (e.filename, e.strerror))
         return False  # return False not to be called again as callback
 
     def logout(self):

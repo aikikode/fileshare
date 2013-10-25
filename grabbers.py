@@ -28,6 +28,7 @@ _author__ = 'aikikode'
 
 import gtk
 import threading
+import re
 # to unquote cyrillic file names and spaces
 import urllib2
 # for delayed actions
@@ -87,7 +88,11 @@ class FileGrabber():
         return True
 
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
-        file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
+        if data.get_text():
+            file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
+        else:
+            file_to_upload = data.data.splitlines()[0].replace("file://", "")
+        file_to_upload = re.sub(r'/([^/]+:/)', r'\1/', file_to_upload)   # handle Win path
         context.finish(True, False, time)
         self.upload_file(file_to_upload, remove=False)
 

@@ -329,6 +329,7 @@ class IndicatorFileshare(threading.Thread):
 
     def upload_from_pixmap(self):
         (fp, temp_img_file) = tempfile.mkstemp('.png')
+        os.close(fp)
         self.gtk_screen_image.save(temp_img_file, "png")
         self.file_grabber.upload_file(temp_img_file, remove=True)
 
