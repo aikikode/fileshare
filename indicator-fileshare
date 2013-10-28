@@ -36,6 +36,7 @@ import commands
 # for delayed actions
 import gobject
 import errno
+import getpass
 
 if os.name == "nt":
     IS_LINUX = False
@@ -233,6 +234,7 @@ class IndicatorFileshare(threading.Thread):
         self.login_menu.append(self.imgur_login_menu)
         self.droplr_login_menu = gtk.MenuItem("...to Droplr")
         self.droplr_login_menu.connect("activate", self.login, "Droplr")
+        self.droplr_login_menu.set_sensitive(False)
         self.login_menu.append(self.droplr_login_menu)
         self.login_menu.show_all()
         if not self.service.is_logged_in():
@@ -461,10 +463,7 @@ if __name__ == "__main__":
     log.info("Fileshare Indicator version %s" % VERSION)
 
     # Single instance stuff for fileshare indicator
-    if IS_LINUX:
-        myapp = SingleInstance("/tmp/indicator-fileshare-%d.pid" % os.getuid())
-    else:
-        myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare.pid")
+    myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare-%s.pid" % getpass.getuser())
     # Check is another instance of same program running
     if myapp.is_already_running():
         log.info("Another instance of this program is already running")
