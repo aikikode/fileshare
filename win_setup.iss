@@ -22,7 +22,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={pf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-InfoBeforeFile=D:\work\my_projects\fileshare\README
+InfoBeforeFile=README
 OutputBaseFilename=fileshare_setup
 Compression=lzma
 SolidCompression=yes
@@ -36,14 +36,14 @@ Name: "startup";     Description: "Automatically start on login"; GroupDescripti
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}";       GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "D:\work\my_projects\fileshare\indicator-fileshare"; DestDir: "{app}"; DestName: indicator-fileshare.pyw; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\AUTHORS"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\CHANGELOG"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\grabbers.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\INSTALL"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\README"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\upload_services.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\work\my_projects\fileshare\icons\*"; DestDir: "{app}\icons\"; Flags: ignoreversion
+Source: "indicator-fileshare"; DestDir: "{app}"; DestName: indicator-fileshare.pyw; Flags: ignoreversion
+Source: "AUTHORS"; DestDir: "{app}"; Flags: ignoreversion
+Source: "CHANGELOG"; DestDir: "{app}"; Flags: ignoreversion
+Source: "grabbers.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "INSTALL"; DestDir: "{app}"; Flags: ignoreversion
+Source: "README"; DestDir: "{app}"; Flags: ignoreversion
+Source: "upload_services.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "icons\*"; DestDir: "{app}\icons\"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
