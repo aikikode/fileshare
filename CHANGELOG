@@ -1,3 +1,7 @@
+v0.5.2
+  New Features:
+  - Show horizontal and vertical lines crossing at the cursor for better precision
+
 v0.5.1
   New Features:
   - Windows 7 support

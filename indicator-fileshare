@@ -57,7 +57,7 @@ DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploa
 
 gobject.threads_init()
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")

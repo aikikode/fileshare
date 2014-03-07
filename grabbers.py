@@ -185,15 +185,16 @@ class ScreenGrabber(threading.Thread):
         self.drawingWindow.present()
 
     def redraw(self, x, y):
-        if not self.selected:
-            return False
-            # recalculate the selected rectangle
-        rLefx = min(self.selection_x_start, x)
-        rTopy = min(self.selection_y_start, y)
-        rRigx = max(self.selection_x_start, x)
-        rBoty = max(self.selection_y_start, y)
-        width = rRigx - rLefx
-        height = rBoty - rTopy
+        def draw_cross(ctx, x, y):
+            """
+            draw 2 lines crossing at the cursor
+            """
+            ctx.set_source_rgba(255.0, 255.0, 255.0, 0.7)
+            ctx.move_to(x, 0)
+            ctx.rel_line_to(0, self.screenHeight)
+            ctx.move_to(0, y)
+            ctx.rel_line_to(self.screenWidth, 0)
+            ctx.stroke()
         ctx = self.drawingWindow.window.cairo_create()
         # shade the whole screen
         ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
@@ -203,6 +204,18 @@ class ScreenGrabber(threading.Thread):
         ctx.set_antialias(cairo.ANTIALIAS_NONE)
         ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
         ctx.paint()
+        if not self.selected:
+            draw_cross(ctx, x, y)
+            return False
+        else:
+            draw_cross(ctx, self.selection_x_start, self.selection_y_start)
+        # recalculate the selected rectangle
+        rLefx = min(self.selection_x_start, x)
+        rTopy = min(self.selection_y_start, y)
+        rRigx = max(self.selection_x_start, x)
+        rBoty = max(self.selection_y_start, y)
+        width = rRigx - rLefx
+        height = rBoty - rTopy
         # draw border
         ctx.set_source_rgba(255.0, 255.0, 255.0, 0.7)
         ctx.rectangle(rLefx, rTopy, width, height)
