@@ -128,14 +128,13 @@ class Imgur(UploadBase):
             self._refresh_token = config.get("IMGUR", "refresh_token")
             self._username = config.get("IMGUR", "username")
         except Exception as e:
-            self.log.error("Error: %s" % str(e))
             self._access_token = ""
             self._refresh_token = ""
             self._username = ""
 
     def login(self):
         def auth_response(dialog, resp_id):
-            if resp_id == Gtk.RESPONSE_OK:
+            if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
                 body = dict(client_id     = self._client_id,
@@ -156,10 +155,10 @@ class Imgur(UploadBase):
             "https://api.imgur.com/oauth2/authorize?client_id=" + self._client_id + "&response_type=pin&state=APPLICATION_STATE")
         # Window to enter PIN from the site
         pin_dialog = Gtk.Dialog(title="Enter PIN",
-                                flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
+                                flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                 buttons=(
-                                    Gtk.STOCK_CANCEL, Gtk.RESPONSE_CANCEL,
-                                    Gtk.STOCK_OK, Gtk.RESPONSE_OK))
+                                    Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                                    Gtk.STOCK_OK, Gtk.ResponseType.OK))
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
         pin_dialog.pin_entry = pin_entry = Gtk.Entry()

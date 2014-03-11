@@ -261,7 +261,7 @@ class IndicatorFileshare(threading.Thread):
 
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](IS_LINUX, self.app_icon, self.config, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](IS_LINUX, self.app_icon, None, CONFIG_FILE, log)
         self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
 
     def login(self, widget, *data):
@@ -277,7 +277,7 @@ class IndicatorFileshare(threading.Thread):
                 string = "{}, {}".format(string, self.service.get_username())
             string = "{})".format(string)
             self.auth.set_label(string)
-            self.auth.remove_submenu()
+            #self.auth.remove_submenu()
             self.auth_id = self.auth.connect("activate", self.logout)
             self.save_settings()
         else:
