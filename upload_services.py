@@ -23,10 +23,18 @@
 # License version 3 and version 2.1 along with this program.  If not, see
 # <http://www.gnu.org/licenses>
 #
+import ConfigParser
+#import pynotify
+from gi.repository import Notify
+import stat
 
 _author__ = 'aikikode'
 
-import gtk
+#import gtk
+from gi.repository import Gtk
+from gi.repository import Gdk
+# for delayed actions
+from gi.repository import GObject
 import webbrowser
 import os
 import threading
@@ -41,15 +49,17 @@ import time
 import urllib
 import urllib2
 import mimetypes
-# for delayed actions
-import gobject
 
 
 class UploadBase(threading.Thread):
     """ All web image services classes should inherit this class """
     __metaclass__ = ABCMeta   # abstract class
-    def __init__(self):
+    def __init__(self, app_icon, IS_LINUX=True):
         threading.Thread.__init__(self)
+        self.app_icon = app_icon
+        self.is_linux = IS_LINUX
+        #self.cb = Gtk.Clipboard()
+        self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
     @abstractmethod
     def login(self):
         pass
@@ -69,18 +79,49 @@ class UploadBase(threading.Thread):
     def upload_callback(self, image, remove):
         return False
     @abstractmethod
-    def save_settings(self, config):
-        return config
+    def save_settings(self):
+        pass
+    def show_notification(self, message):
+        if self.is_linux:
+            Notify.init("Fileshare")
+            notify = Notify.Notification.new("Fileshare", message, self.app_icon)
+            notify.show()
+        else:
+            popup = Gtk.Window(Gtk.WINDOW_POPUP)
+            popup.set_decorated(False)
+            popup.set_has_frame(False)
+            popup.set_skip_taskbar_hint(True)
+            popup.set_skip_pager_hint(True)
+            popup.set_can_focus(False)
+            popup.set_accept_focus(False)
+            popup.set_keep_above(True)
+            popup.move(10, 10)
+            popup.set_opacity(0.9)
+            popup_message = Gtk.Label("Fileshare: " + message)
+            popup.add(popup_message)
+            popup.show_all()
+            GObject.timeout_add(5000, popup.destroy)
+    def show_result(self, url):
+        self.cb.set_text(url, -1)
+        self.cb.store()
+        self.show_notification(url)
+    def prepare_image(self, image):
+        # convert file name to utf-8
+        file_to_upload = image.decode('UTF-8').encode('UTF-8')
+        # convert %80%20 and other to cyrillic symbols and spaces
+        file_to_upload = urllib2.unquote(file_to_upload)
+        return file_to_upload
+
 
 
 class Imgur(UploadBase):
-    def __init__(self, indicator, config, log):
-        UploadBase.__init__(self)
+    def __init__(self, IS_LINUX, app_icon, config, config_file, log):
+        UploadBase.__init__(self, app_icon, IS_LINUX)
         # API v3
         self._client_id = "813588ae4b2b41a"
         self._client_secret = "1cc11d1006c90d0e184daa29085a015e24cd6705"
-        self.indicator = indicator
         self.log = log
+        self.config_file = config_file
         self._url = 'https://imgur.com/'
         try:
             self._access_token = config.get("IMGUR", "access_token")
@@ -94,7 +135,7 @@ class Imgur(UploadBase):
 
     def login(self):
         def auth_response(dialog, resp_id):
-            if resp_id == gtk.RESPONSE_OK:
+            if resp_id == Gtk.RESPONSE_OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
                 body = dict(client_id     = self._client_id,
@@ -114,14 +155,14 @@ class Imgur(UploadBase):
         webbrowser.open(
             "https://api.imgur.com/oauth2/authorize?client_id=" + self._client_id + "&response_type=pin&state=APPLICATION_STATE")
         # Window to enter PIN from the site
-        pin_dialog = gtk.Dialog(title="Enter PIN",
-                                flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+        pin_dialog = Gtk.Dialog(title="Enter PIN",
+                                flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
                                 buttons=(
-                                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                    gtk.STOCK_OK, gtk.RESPONSE_OK))
+                                    Gtk.STOCK_CANCEL, Gtk.RESPONSE_CANCEL,
+                                    Gtk.STOCK_OK, Gtk.RESPONSE_OK))
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
-        pin_dialog.pin_entry = pin_entry = gtk.Entry()
+        pin_dialog.pin_entry = pin_entry = Gtk.Entry()
         pin_entry.show()
         pin_dialog.vbox.add(pin_entry)
         pin_dialog.connect('response', auth_response)
@@ -140,13 +181,22 @@ class Imgur(UploadBase):
     def get_site_url(self):
         return self._url
 
-    def save_settings(self, config):
-        if not config.has_section("IMGUR"):
-            config.add_section("IMGUR")
-        config.set("IMGUR", "access_token", self._access_token)
-        config.set("IMGUR", "refresh_token", self._refresh_token)
-        config.set("IMGUR", "username", self._username)
-        return config
+    def save_settings(self):
+        config = ConfigParser.RawConfigParser()
+        try:
+            if not config.has_section("IMGUR"):
+                config.add_section("IMGUR")
+            config.set("IMGUR", "access_token", self._access_token)
+            config.set("IMGUR", "refresh_token", self._refresh_token)
+            config.set("IMGUR", "username", self._username)
+            if not config.has_section("SERVICE"):
+                config.add_section("SERVICE")
+            config.set("SERVICE", "name", "Imgur")
+            with open(self.config_file, 'w+') as configfile:
+                os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
+                config.write(configfile)
+        except Exception as e:
+            self.log.error("Error: %s" % str(e))
 
     def refresh_access_token(self):
         if self._refresh_token:
@@ -163,15 +213,15 @@ class Imgur(UploadBase):
                 self._access_token = str(resp['access_token'])
                 self._refresh_token = str(resp['refresh_token'])
                 self._username = str(resp['account_username'])
-                self.indicator.save_settings()
+                self.save_settings()
                 return True
             else:
                 self.logout()
                 # Inform the user that we have logged out
-                dialog = gtk.MessageDialog(parent=None,
+                dialog = Gtk.MessageDialog(parent=None,
                                            flags=0,
-                                           type=gtk.MESSAGE_WARNING,
-                                           buttons=gtk.BUTTONS_OK,
+                                           type=Gtk.MESSAGE_WARNING,
+                                           buttons=Gtk.BUTTONS_OK,
                                            message_format=None)
                 dialog.set_title("fileshare")
                 dialog.set_markup("Authentication failed!")
@@ -180,7 +230,9 @@ class Imgur(UploadBase):
                 dialog.destroy()
         return False
 
-    def upload_callback(self, image, remove):
+    def upload_callback(self, image, remove, call_prepare=True):
+        if call_prepare:
+            image = self.prepare_image(image)
         def img2base64(image):
             with open(image, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read())
@@ -204,12 +256,15 @@ class Imgur(UploadBase):
                 raise Exception('Auth token expired')
         except Exception as e:
             self.log.error("Error: %s" % str(e))
-            if self._access_token and self.indicator.service.refresh_access_token():
-                return self.upload_callback(image, remove)
+            if str(e).startswith("HTTP Error 400"):
+                self.show_notification("Sorry, but Fileshare couldn't upload the file of this type.")
+            else:
+                if self._access_token and self.refresh_access_token():
+                    return self.upload_callback(image, remove, call_prepare=False)
         try:
             resp_dict = json.loads(self.response)
             url = resp_dict['data']['link']
-            self.indicator.file_grabber.show_result(url)
+            self.show_result(url)
         except Exception as e:
             self.log.error("Error: %s" % str(e))
         if remove:
@@ -227,12 +282,12 @@ class Imgur(UploadBase):
 
 
 class Droplr(UploadBase):
-    def __init__(self, indicator, config, log):
-        UploadBase.__init__(self)
+    def __init__(self, IS_LINUX, app_icon, config, config_file, log):
+        UploadBase.__init__(self, app_icon, IS_LINUX)
         self._public_key = ""
         self._private_key = ""
-        self.indicator = indicator
         self.log = log
+        self.config_file = config_file
         self._url = 'https://droplr.com/'
         self.api_url = ''
         try:
@@ -250,13 +305,13 @@ class Droplr(UploadBase):
     def relogin(self):
         self._login = ""
         self._password_sha1 = ""
-        self.indicator.show_notification("Invalid login/password. Please try again")
+        self.show_notification("Invalid login/password. Please try again")
         self.log.debug("Invalid login/password, trying again")
-        gobject.idle_add(self.login)
+        GObject.idle_add(self.login)
 
     def login(self):
         def auth_response(dialog, resp_id):
-            if resp_id == gtk.RESPONSE_OK:
+            if resp_id == Gtk.RESPONSE_OK:
                 self.response = ''
                 email = dialog.email_entry.get_text()
                 password = dialog.password_entry.get_text()
@@ -268,37 +323,37 @@ class Droplr(UploadBase):
                     self.relogin()
         #def auth_response(dialog, resp_id)
         # Window to enter email and password
-        pin_dialog = gtk.Dialog(title="Droplr Login",
-                                flags=gtk.DIALOG_DESTROY_WITH_PARENT,
+        pin_dialog = Gtk.Dialog(title="Droplr Login",
+                                flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
                                 buttons=(
-                                    "Sign Up", gtk.RESPONSE_OK,
-                                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
-        pin_dialog.set_default_response(gtk.RESPONSE_OK)
+                                    "Sign Up", Gtk.RESPONSE_OK,
+                                    Gtk.STOCK_CANCEL, Gtk.RESPONSE_CANCEL))
+        pin_dialog.set_default_response(Gtk.RESPONSE_OK)
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
         pin_dialog.set_resizable(False)
 
-        pin_dialog.email_entry = email_entry = gtk.Entry()
-        email_entry.set_activates_default(gtk.TRUE)
+        pin_dialog.email_entry = email_entry = Gtk.Entry()
+        email_entry.set_activates_default(Gtk.TRUE)
         pin_dialog.email_entry.show()
 
-        pin_dialog.password_entry = password_entry = gtk.Entry()
-        password_entry.set_activates_default(gtk.TRUE)
+        pin_dialog.password_entry = password_entry = Gtk.Entry()
+        password_entry.set_activates_default(Gtk.TRUE)
 
-        email_label = gtk.Label("e-mail :")
-        password_label = gtk.Label("password :")
+        email_label = Gtk.Label("e-mail :")
+        password_label = Gtk.Label("password :")
         password_entry.set_visibility(False)
         pin_dialog.password_entry.show()
 
         def forgot_password_callback(self, widget, data = None):
             webbrowser.open('https://www.dropbox.com/forgot')
-        forgot_password_button = gtk.Button("Forgot password?")
+        forgot_password_button = Gtk.Button("Forgot password?")
         forgot_password_button.connect("clicked", forgot_password_callback, None)
-        forgot_password_button.props.relief = gtk.RELIEF_NONE
+        forgot_password_button.props.relief = Gtk.RELIEF_NONE
         label =  forgot_password_button.get_children()[0]
-        label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('red'))
-        label.modify_fg(gtk.STATE_PRELIGHT, gtk.gdk.color_parse('red'))
-        table = gtk.Table(2, 3, True)
+        label.modify_fg(Gtk.STATE_NORMAL, Gdk.color_parse('red'))
+        label.modify_fg(Gtk.STATE_PRELIGHT, Gdk.color_parse('red'))
+        table = Gtk.Table(2, 3, True)
         table.attach(email_label, 0, 1, 0, 1)
         table.attach(password_label, 0, 1, 1, 2)
         table.attach(email_entry, 1, 3, 0, 1)
@@ -323,11 +378,22 @@ class Droplr(UploadBase):
     def get_site_url(self):
         return self._url
 
-    def save_settings(self, config):
-        if not config.has_section("DROPLR"):
-            config.add_section("DROPLR")
-        config.set("DROPLR", "email", self._login)
-        config.set("DROPLR", "password", self._password_sha1)
+    def save_settings(self):
+        config = ConfigParser.RawConfigParser()
+        try:
+            if not config.has_section("DROPLR"):
+                config.add_section("DROPLR")
+            config.set("DROPLR", "email", self._login)
+            config.set("DROPLR", "password", self._password_sha1)
+            if not config.has_section("SERVICE"):
+                config.add_section("SERVICE")
+            config.set("SERVICE", "name", "Droplr")
+            with open(self.config_file, 'w+') as configfile:
+                os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
+                config.write(configfile)
+        except Exception as e:
+            self.log.error("Error: %s" % str(e))
+
         return config
 
     def create_signature(self, string_to_sign):
@@ -364,7 +430,9 @@ class Droplr(UploadBase):
         except:
             return False
 
-    def upload_callback(self, image, remove):
+    def upload_callback(self, image, remove, call_prepare=True):
+        if call_prepare:
+            image = self.prepare_image(image)
         def get_data(image):
             with open(image, "rb") as image_file:
                 data = image_file.read()
@@ -383,7 +451,7 @@ class Droplr(UploadBase):
             dict = response.get_data()
             try:
                 url = dict['shortlink']
-                self.indicator.file_grabber.show_result(url)
+                self.show_result(url)
             except Exception as e:
                 self.log.error("Error: %s" % str(e))
         if remove:

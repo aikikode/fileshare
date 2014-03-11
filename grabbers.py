@@ -24,17 +24,20 @@
 # <http://www.gnu.org/licenses>
 #
 
+import os
+import tempfile
+
 _author__ = 'aikikode'
 
-import gtk
+#import gtk
+from gi.repository import Gtk
+from gi.repository import Gdk
+from gi.repository import GObject
+import cairo
 import threading
 import re
-# to unquote cyrillic file names and spaces
-import urllib2
-# for delayed actions
-import gobject
 # for screen area grabber colors
-import cairo
+from gi.repository import GdkPixbuf
 
 FILE_GRABBER_SIZE = 50
 
@@ -43,32 +46,34 @@ class FileGrabber():
     """ Applet for drag'n'drop files to. The file is automatically uploaded to
         the hosting and the result URL is copied into the clipboard """
 
-    def __init__(self, indicator = None):
-        self.cb = gtk.Clipboard()
-        self.indicator = indicator
-        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+    def __init__(self, app_icon, upload_callback):
+        self.upload_callback = upload_callback
+        self.window = Gtk.Window(Gtk.WindowType.TOPLEVEL)
         self.window.set_decorated(False)
         self.window.set_opacity(0.5)
         self.window.set_size_request(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE)
         self.window.set_resizable(False)
         self.window.drag_dest_set(0, [], 0)
 
-        self.window.set_gravity(gtk.gdk.GRAVITY_NORTH_EAST)
+        self.window.set_gravity(Gdk.Gravity.NORTH_EAST)
         width, height = self.window.get_size()
-        self.window.move(gtk.gdk.screen_width() - width - 20, height)
-        self.app_icon = self.indicator.app_icon
+        self.window.move(Gdk.Screen.width() - width - 20, height)
+        self.app_icon = app_icon
 
         # Add main widget for grabbing files
-        self.image = gtk.Image()
-        pixbuf = gtk.gdk.pixbuf_new_from_file(self.app_icon)
-        scaled_buf = pixbuf.scale_simple(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE, gtk.gdk.INTERP_BILINEAR)
+        self.image = Gtk.Image()
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(self.app_icon)
+        scaled_buf = pixbuf.scale_simple(FILE_GRABBER_SIZE, FILE_GRABBER_SIZE, GdkPixbuf.InterpType.BILINEAR)
         self.image.set_from_pixbuf(scaled_buf)
         self.image.show()
         self.window.add(self.image)
-        self.window.connect('drag_motion', self.window_drag_motion)
-        self.window.connect('drag_drop', self.window_drag_drop)
-        self.window.connect('drag_data_received', self.window_drag_data_received)
+        self.window.connect('drag-motion', self.window_drag_motion)
+        self.window.connect('drag-drop', self.window_drag_drop)
+        self.window.connect('drag-data-received', self.window_drag_data_received)
         self.isShown = False
+
+    def set_upload_callback(self, upload_callback):
+        self.upload_callback = upload_callback
 
     def toggle_window(self):
         if self.isShown:
@@ -80,50 +85,36 @@ class FileGrabber():
             self.isShown = True
 
     def window_drag_motion(self, wid, context, x, y, time):
-        context.drag_status(gtk.gdk.ACTION_COPY, time)
+        Gdk.drag_status(context, Gdk.DragAction.COPY, time)
         return True      # True means "I accept this data"
 
     def window_drag_drop(self, wid, context, x, y, time):
-        wid.drag_get_data(context, context.targets[-1], time)
+        wid.drag_get_data(context, context.list_targets()[-1], time)
         return True
 
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
         if data.get_text():
             file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
         else:
-            file_to_upload = data.data.splitlines()[0].replace("file://", "")
+            file_to_upload = data.get_data().splitlines()[0].replace("file://", "")
         file_to_upload = re.sub(r'/([^/]+:/)', r'\1/', file_to_upload)   # handle Win path
         context.finish(True, False, time)
-        self.upload_file(file_to_upload, remove=False)
-
-    def upload_file(self, image, remove=False):
-        # convert file name to utf-8
-        file_to_upload = image.decode('UTF-8').encode('UTF-8')
-        # convert %80%20 and other to cyrillic symbols and spaces
-        file_to_upload = urllib2.unquote(file_to_upload)
-        gobject.idle_add(self.indicator.service.upload_callback, file_to_upload, remove)
-
-    def show_result(self, url):
-        self.cb.set_text(url)
-        self.cb.store()
-        self.indicator.show_notification(url)
+        GObject.idle_add(self.upload_callback, file_to_upload, False)
 #class FileGrabber()
 
 
 ##############################################################################
 class ScreenGrabber(threading.Thread):
-    def __init__(self, eventHandler, log):
+    def __init__(self, upload_callback, log):
         threading.Thread.__init__(self)
+        self.upload_callback = upload_callback
         self.log = log
         self.log.debug("ScreenGrabber: creating")
         self.selected = False
-        root = gtk.gdk.get_default_root_window()
-        self.screenWidth, self.screenHeight = root.get_size()
+        self.screenWidth, self.screenHeight = Gdk.Screen.width(), Gdk.Screen.height()
         width, height = self.screenWidth, self.screenHeight
-        self.drawingWindow = drawingWindow = gtk.Window(gtk.WINDOW_POPUP)
-        drawingWindow.set_type_hint(gtk.gdk.WINDOW_TYPE_HINT_SPLASHSCREEN)
+        self.drawingWindow = drawingWindow = Gtk.Window(Gtk.WindowType.POPUP)
         drawingWindow.set_decorated(False)
-        drawingWindow.set_has_frame(False)
         drawingWindow.set_skip_taskbar_hint(True)
         drawingWindow.set_skip_pager_hint(True)
         drawingWindow.set_can_focus(True)
@@ -133,34 +124,97 @@ class ScreenGrabber(threading.Thread):
         drawingWindow.resize(width, height)
         drawingWindow.move(0, 0)
         drawingWindow.set_app_paintable(True)
-        drawingWindow.set_opacity(0.3)
-        rgba = drawingWindow.get_screen().get_rgba_colormap()
-        if rgba:
-            drawingWindow.set_colormap(rgba)
-        drawingWindow.set_events(gtk.gdk.POINTER_MOTION_MASK |
-                                 gtk.gdk.BUTTON_PRESS_MASK |
-                                 gtk.gdk.BUTTON_RELEASE_MASK |
-                                 gtk.gdk.KEY_PRESS_MASK)
+        drawingWindow.set_opacity(0.2)
+        visual = drawingWindow.get_screen().get_rgba_visual()
+        if visual:
+            drawingWindow.set_visual(visual)
+        drawingWindow.set_app_paintable(True)
+        drawingWindow.set_events(Gdk.EventMask.POINTER_MOTION_MASK |
+                                 Gdk.EventMask.BUTTON_PRESS_MASK |
+                                 Gdk.EventMask.BUTTON_RELEASE_MASK |
+                                 Gdk.EventMask.KEY_PRESS_MASK)
         drawingWindow.show()
         drawingWindow.present()
-        gtk.gdk.keyboard_grab(drawingWindow.window)
-        cursor = gtk.gdk.Cursor(gtk.gdk.CROSSHAIR)
-        drawingWindow.window.set_cursor(cursor)
-        self.cursor = 'crosshair'
-        drawingWindow.connect_after('expose-event', self.expose_event)
-        drawingWindow.connect('button-press-event', eventHandler, self)
-        drawingWindow.connect('button-release-event', eventHandler, self)
-        drawingWindow.connect('key-press-event', eventHandler, self)
-        drawingWindow.connect('motion-notify-event', eventHandler, self)
+        cursor = Gdk.Cursor(Gdk.CursorType.CROSSHAIR)
+        drawingWindow.get_window().set_cursor(cursor)
+        drawingWindow.connect("draw", self.initial_draw)
+        drawingWindow.connect('button-press-event', self.select_area_event_handler, self)
+        drawingWindow.connect('button-release-event', self.select_area_event_handler, self)
+        drawingWindow.connect('key-press-event', self.select_area_event_handler, self)
+        drawingWindow.connect('motion-notify-event', self.select_area_event_handler, self)
+
+    def initial_draw(self, widget, cr):
+        cr.set_source_rgba(0, 0, 0, 0.5)
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+
+    def select_area_event_handler(self, widget, event, selector):
+        if event.type == Gdk.EventType.MOTION_NOTIFY:
+            selector.redraw(event.x, event.y)
+        elif event.type == Gdk.EventType.BUTTON_PRESS and event.button == 1:
+            selector.start_selection(event.x, event.y)
+        elif event.type == Gdk.EventType.BUTTON_RELEASE and event.button == 1:
+            selector.stop_selection(event.x, event.y)
+            selector.set_complete_handler(self.take_screen_of_area_complete_handler)
+            selector.__del__()
+            del selector
+        elif (event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3) or (
+                    event.type == Gdk.EventType.KEY_PRESS and event.keyval == Gdk.keyval_from_name('Escape')):
+            selector.__del__()
+            del selector
+
+    def take_screen_of_area_complete_handler(self, x, y, width, height):
+        root = Gdk.get_default_root_window()
+        pixbuf = Gdk.pixbuf_get_from_window(root, x, y, width, height)
+        self.gtk_screen_image = pixbuf
+        # Call preview window
+        self.preview_screen_of_area()
+
+    def upload_from_pixmap(self):
+        (fp, temp_img_file) = tempfile.mkstemp('.png')
+        os.close(fp)
+        self.gtk_screen_image.savev(temp_img_file, "png", [], [])
+        GObject.idle_add(self.upload_callback, temp_img_file, True)
+
+    def preview_screen_of_area(self):
+        def response(dialog, resp_id):
+            if resp_id == Gtk.ResponseType.OK:
+                self.upload_from_pixmap()
+        image = self.gtk_screen_image
+        self.preview_dialog = preview_dialog = Gtk.Dialog(title="Preview screenshot",
+                                                          flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                                          buttons=(
+                                                              Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                                                              Gtk.STOCK_OK, Gtk.ResponseType.OK))
+        preview_dialog.set_modal(True)
+        preview_dialog.set_decorated(False)
+        # Scale image for preview
+        preview_image_width = float(image.get_width())
+        preview_image_height = float(image.get_height())
+        MAX_WIDTH = 600
+        MAX_HEIGHT = 400
+        if preview_image_width / preview_image_height > MAX_WIDTH / MAX_HEIGHT:
+            preview_image_height = int(round((MAX_WIDTH / preview_image_width) * preview_image_height))
+            preview_image_width = MAX_WIDTH
+        else:
+            preview_image_width = int(round((MAX_HEIGHT / preview_image_height) * preview_image_width))
+            preview_image_height = MAX_HEIGHT
+        preview_image = image.scale_simple(preview_image_width, preview_image_height, GdkPixbuf.InterpType.BILINEAR)
+        widget_image = Gtk.Image.new_from_pixbuf(preview_image)
+        widget_image.show()
+        preview_dialog.vbox.add(widget_image)
+        preview_dialog.connect('response', response)
+        preview_dialog.run()
+        preview_dialog.destroy()
 
     def __del__(self):
         if hasattr(self, 'deleted'):
             return True
-        ctx = self.drawingWindow.window.cairo_create()
+        ctx = self.drawingWindow.get_window().cairo_create()
         self.clear(ctx)
-        gtk.gdk.keyboard_ungrab()
         # Give cairo some time to clear the screen before the destruction of the window
-        gobject.timeout_add(50, self.drawingWindow.destroy)
+        GObject.timeout_add(50, self.drawingWindow.destroy)
         if self.selected and hasattr(self, 'completeHandler'):
             x = int(round(min(self.selection_x_start, self.selection_x_end)))
             y = int(round(min(self.selection_y_start, self.selection_y_end)))
@@ -168,7 +222,7 @@ class ScreenGrabber(threading.Thread):
             height = int(round(abs(self.selection_y_end - self.selection_y_start)))
             # Do not take screen shot if grabbed area is too small
             if width > 10 and height > 10:
-                gobject.timeout_add(150, self.completeHandler, x, y, width, height)
+                GObject.timeout_add(150, self.completeHandler, x, y, width, height)
             else:
                 self.log.debug("ScreenGrabber: selected area is too small")
         self.deleted = True
@@ -195,7 +249,7 @@ class ScreenGrabber(threading.Thread):
             ctx.move_to(0, y)
             ctx.rel_line_to(self.screenWidth, 0)
             ctx.stroke()
-        ctx = self.drawingWindow.window.cairo_create()
+        ctx = self.drawingWindow.get_window().cairo_create()
         # shade the whole screen
         ctx.rectangle(0, 0, self.screenWidth, self.screenHeight)
         ctx.clip()
@@ -231,15 +285,10 @@ class ScreenGrabber(threading.Thread):
         return ctx
 
     def dark_fill(self):
-        ctx = self.drawingWindow.window.cairo_create()
+        ctx = self.drawingWindow.get_window().cairo_create()
         ctx.set_operator(cairo.OPERATOR_SOURCE)
         ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
         ctx.paint()
-
-    def expose_event(self, widget, event):
-        self.dark_fill()
-        if self.selected:
-            self.redraw(self.selection_x_end, self.selection_y_end)
 
     def set_complete_handler(self, completeHandler):
         self.completeHandler = completeHandler
