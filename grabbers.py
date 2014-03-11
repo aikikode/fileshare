@@ -186,7 +186,8 @@ class ScreenGrabber(threading.Thread):
                                                           flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                                           buttons=(
                                                               Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                                                              Gtk.STOCK_OK, Gtk.ResponseType.OK))
+                                                              "Upload", Gtk.ResponseType.OK))
+        preview_dialog.set_default_response(Gtk.ResponseType.OK)
         preview_dialog.set_modal(True)
         preview_dialog.set_decorated(False)
         # Scale image for preview

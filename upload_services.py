@@ -54,33 +54,42 @@ import mimetypes
 class UploadBase(threading.Thread):
     """ All web image services classes should inherit this class """
     __metaclass__ = ABCMeta   # abstract class
+
     def __init__(self, app_icon, IS_LINUX=True):
         threading.Thread.__init__(self)
         self.app_icon = app_icon
         self.is_linux = IS_LINUX
         #self.cb = Gtk.Clipboard()
         self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+
     @abstractmethod
     def login(self):
         pass
+
     @abstractmethod
     def logout(self):
         pass
+
     @abstractmethod
     def is_logged_in(self):
         return False
+
     @abstractmethod
     def get_username(self):
         return None
+
     @abstractmethod
     def get_site_url(self):
         return None
+
     @abstractmethod
     def upload_callback(self, image, remove):
         return False
+
     @abstractmethod
     def save_settings(self):
         pass
+
     def show_notification(self, message):
         if self.is_linux:
             Notify.init("Fileshare")
@@ -101,17 +110,18 @@ class UploadBase(threading.Thread):
             popup.add(popup_message)
             popup.show_all()
             GObject.timeout_add(5000, popup.destroy)
+
     def show_result(self, url):
         self.cb.set_text(url, -1)
         self.cb.store()
         self.show_notification(url)
+
     def prepare_image(self, image):
         # convert file name to utf-8
         file_to_upload = image.decode('UTF-8').encode('UTF-8')
         # convert %80%20 and other to cyrillic symbols and spaces
         file_to_upload = urllib2.unquote(file_to_upload)
         return file_to_upload
-
 
 
 class Imgur(UploadBase):
@@ -137,10 +147,10 @@ class Imgur(UploadBase):
             if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
-                body = dict(client_id     = self._client_id,
-                            client_secret = self._client_secret,
-                            grant_type    = 'pin',
-                            pin           = pin)
+                body = dict(client_id=self._client_id,
+                            client_secret=self._client_secret,
+                            grant_type='pin',
+                            pin=pin)
                 req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
                 for line in urllib2.urlopen(req):
                     self.response = line
@@ -149,22 +159,29 @@ class Imgur(UploadBase):
                     self._access_token = str(resp["access_token"])
                     self._refresh_token = str(resp["refresh_token"])
                     self.refresh_access_token() # is done to get username
+                    self.show_notification("Successfully logged in to Imgur")
+
         #def auth_response(dialog, resp_id)
         # Open browser windows and prompt for access to Imgur account
         webbrowser.open(
             "https://api.imgur.com/oauth2/authorize?client_id=" + self._client_id + "&response_type=pin&state=APPLICATION_STATE")
         # Window to enter PIN from the site
-        pin_dialog = Gtk.Dialog(title="Enter PIN",
+        pin_dialog = Gtk.Dialog(title="Fileshare Imgur Login",
                                 flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                 buttons=(
                                     Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
                                     Gtk.STOCK_OK, Gtk.ResponseType.OK))
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
+        label = Gtk.Label(
+            "The browser window should have been opened.\n"
+            "Please, allow fileshare applet to use your Imgur account.\n"
+            "After that copy provided PIN from webpage and paste it here.")
         pin_dialog.pin_entry = pin_entry = Gtk.Entry()
-        pin_entry.show()
+        pin_dialog.vbox.add(label)
         pin_dialog.vbox.add(pin_entry)
         pin_dialog.connect('response', auth_response)
+        pin_dialog.show_all()
         pin_dialog.run()
         pin_dialog.destroy()
 
@@ -199,10 +216,10 @@ class Imgur(UploadBase):
 
     def refresh_access_token(self):
         if self._refresh_token:
-            body = dict(client_id     = self._client_id,
-                        refresh_token = self._refresh_token,
-                        client_secret = self._client_secret,
-                        grant_type    = 'refresh_token')
+            body = dict(client_id=self._client_id,
+                        refresh_token=self._refresh_token,
+                        client_secret=self._client_secret,
+                        grant_type='refresh_token')
             req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
             for line in urllib2.urlopen(req):
                 self.response = line
@@ -224,7 +241,8 @@ class Imgur(UploadBase):
                                            message_format=None)
                 dialog.set_title("fileshare")
                 dialog.set_markup("Authentication failed!")
-                dialog.format_secondary_text("Please, log in again. Otherwise your images will be uploaded anonymously.")
+                dialog.format_secondary_text(
+                    "Please, log in again. Otherwise your images will be uploaded anonymously.")
                 dialog.run()
                 dialog.destroy()
         return False
@@ -232,6 +250,7 @@ class Imgur(UploadBase):
     def upload_callback(self, image, remove, call_prepare=True):
         if call_prepare:
             image = self.prepare_image(image)
+
         def img2base64(image):
             with open(image, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read())
@@ -241,11 +260,11 @@ class Imgur(UploadBase):
         self.response = ''
         self.base64String = img2base64(image)
         if self._access_token:
-            header = { 'Authorization': 'Bearer ' + self._access_token }
+            header = {'Authorization': 'Bearer ' + self._access_token}
         else:
             # Anonymous upload
-            header = { 'Authorization': 'Client-ID ' + self._client_id }
-        body = dict(image = self.base64String)
+            header = {'Authorization': 'Client-ID ' + self._client_id}
+        body = dict(image=self.base64String)
         req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(body), header)
         try:
             for line in urllib2.urlopen(req):
@@ -277,6 +296,7 @@ class Imgur(UploadBase):
         self._access_token = ""
         self._refresh_token = ""
         self._username = ""
+
 #class Imgur()
 
 
@@ -310,7 +330,7 @@ class Droplr(UploadBase):
 
     def login(self):
         def auth_response(dialog, resp_id):
-            if resp_id == Gtk.RESPONSE_OK:
+            if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 email = dialog.email_entry.get_text()
                 password = dialog.password_entry.get_text()
@@ -320,14 +340,15 @@ class Droplr(UploadBase):
                 self._authorization_header = base64.b64encode(self._public_key + ":" + self._login)
                 if not self.are_credentials_ok():
                     self.relogin()
+
         #def auth_response(dialog, resp_id)
         # Window to enter email and password
         pin_dialog = Gtk.Dialog(title="Droplr Login",
                                 flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
                                 buttons=(
-                                    "Sign Up", Gtk.RESPONSE_OK,
-                                    Gtk.STOCK_CANCEL, Gtk.RESPONSE_CANCEL))
-        pin_dialog.set_default_response(Gtk.RESPONSE_OK)
+                                    "Sign Up", Gtk.ResponseType.OK,
+                                    Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL))
+        pin_dialog.set_default_response(Gtk.ResponseType.OK)
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
         pin_dialog.set_resizable(False)
@@ -344,12 +365,13 @@ class Droplr(UploadBase):
         password_entry.set_visibility(False)
         pin_dialog.password_entry.show()
 
-        def forgot_password_callback(self, widget, data = None):
+        def forgot_password_callback(self, widget, data=None):
             webbrowser.open('https://www.dropbox.com/forgot')
+
         forgot_password_button = Gtk.Button("Forgot password?")
         forgot_password_button.connect("clicked", forgot_password_callback, None)
         forgot_password_button.props.relief = Gtk.RELIEF_NONE
-        label =  forgot_password_button.get_children()[0]
+        label = forgot_password_button.get_children()[0]
         label.modify_fg(Gtk.STATE_NORMAL, Gdk.color_parse('red'))
         label.modify_fg(Gtk.STATE_PRELIGHT, Gdk.color_parse('red'))
         table = Gtk.Table(2, 3, True)
@@ -396,7 +418,8 @@ class Droplr(UploadBase):
         return config
 
     def create_signature(self, string_to_sign):
-        return base64.b64encode(hmac.new(self._private_key + ":" + self._password_sha1, string_to_sign, hashlib.sha1).digest())
+        return base64.b64encode(
+            hmac.new(self._private_key + ":" + self._password_sha1, string_to_sign, hashlib.sha1).digest())
 
     def perform_request(self, method, uri, date, content_type, data, params):
         self.response = ''
@@ -432,6 +455,7 @@ class Droplr(UploadBase):
     def upload_callback(self, image, remove, call_prepare=True):
         if call_prepare:
             image = self.prepare_image(image)
+
         def get_data(image):
             with open(image, "rb") as image_file:
                 data = image_file.read()
@@ -470,8 +494,11 @@ class Droplr(UploadBase):
                 if self.response[1][:4] == 'HTTP':
                     self.response[1] = self.response[2]
                 self.dict = json.loads(self.response[1])
+
         def is_error(self):
             return self.error
+
         def get_data(self):
             return self.dict if not self.is_error() else None
+
 #class Droplr()

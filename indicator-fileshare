@@ -277,7 +277,7 @@ class IndicatorFileshare(threading.Thread):
                 string = "{}, {}".format(string, self.service.get_username())
             string = "{})".format(string)
             self.auth.set_label(string)
-            #self.auth.remove_submenu()
+            self.auth.set_submenu(None)
             self.auth_id = self.auth.connect("activate", self.logout)
             self.save_settings()
         else:
