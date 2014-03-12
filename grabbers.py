@@ -113,7 +113,7 @@ class ScreenGrabber(threading.Thread):
         self.selected = False
         self.screenWidth, self.screenHeight = Gdk.Screen.width(), Gdk.Screen.height()
         width, height = self.screenWidth, self.screenHeight
-        self.drawingWindow = drawingWindow = Gtk.Window(Gtk.WindowType.POPUP)
+        self.drawingWindow = drawingWindow = Gtk.Window()
         drawingWindow.set_decorated(False)
         drawingWindow.set_skip_taskbar_hint(True)
         drawingWindow.set_skip_pager_hint(True)
@@ -125,6 +125,7 @@ class ScreenGrabber(threading.Thread):
         drawingWindow.move(0, 0)
         drawingWindow.set_app_paintable(True)
         drawingWindow.set_opacity(0.2)
+        drawingWindow.fullscreen()
         visual = drawingWindow.get_screen().get_rgba_visual()
         if visual:
             drawingWindow.set_visual(visual)
