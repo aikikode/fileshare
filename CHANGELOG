@@ -1,3 +1,12 @@
+v0.5.2
+  New Features:
+  - Show horizontal and vertical lines crossing at the cursor for better precision
+  - Drop Windows 7 support until full GTK3 cairo support
+  - Use GTK3 instead of GTK2
+  Fixes:
+  - Grabbing screenshot of large areas freezes the app and the syste,.
+
+
 v0.5.1
   New Features:
   - Windows 7 support

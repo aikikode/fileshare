@@ -26,25 +26,22 @@
 
 _author__ = 'aikikode'
 
-import sys, os, stat, shutil, tempfile
+#import gtk
+from gi.repository import Gtk
+from gi.repository import Gdk
+from gi.repository import GObject
+from gi.repository import GdkPixbuf
+
+import sys, os, shutil, tempfile
 import ConfigParser
-import gtk
 import threading
 import webbrowser
 import logging, logging.handlers
 import commands
 # for delayed actions
-import gobject
 import errno
 import getpass
-
-if os.name == "nt":
-    IS_LINUX = False
-    import subprocess
-else:
-    IS_LINUX = True
-    import appindicator
-    import pynotify
+from gi.repository import AppIndicator3 as appindicator
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -55,9 +52,9 @@ from grabbers import FileGrabber, ScreenGrabber
 
 DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploads
 
-gobject.threads_init()
+GObject.threads_init()
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -78,10 +75,7 @@ class SingleInstance(object):
             # Make sure it is not a "stale" pidFile
             pid = open(pidPath, 'r').read().strip()
             # Check list of running pids, if not running it is stale so overwrite
-            if IS_LINUX:
-                pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
-            else:
-                pidRunning = None if "No tasks are running" in subprocess.check_output('tasklist /V /FI "PID eq %s"' % pid) else pid
+            pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
             log.debug("SingleInstance: pid running %s" % pidRunning)
             self.lasterror = True if pidRunning else False
         else:
@@ -115,31 +109,20 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        if IS_LINUX:
-            self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
-        else:
-            self.app_icon = "./icons/app_icon.png"
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.read_settings()
         self.check_autostart()
-        if IS_LINUX:
-            self.ind = appindicator.Indicator("fileshare-services-client",
-                                              "indicator-fileshare",
-                                              appindicator.CATEGORY_APPLICATION_STATUS)
-            self.ind.set_status(appindicator.STATUS_ACTIVE)
-            self.ind.set_icon(self.app_icon)
-        else:
-            self.ind = gtk.StatusIcon()
-            self.ind.set_from_file(self.app_icon)
-            self.ind.set_title("Fileshare")
-            self.ind.set_name("Fileshare")
-            self.ind.set_tooltip_text("Fileshare")
-            self.ind.connect("popup-menu", self.show_ind_menu)
-        self.file_grabber = FileGrabber(self)
+        self.ind = appindicator.Indicator.new("fileshare-services-client",
+                                          "indicator-fileshare",
+                                          appindicator.IndicatorCategory.APPLICATION_STATUS)
+        self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
+        self.ind.set_icon(self.app_icon)
+        self.file_grabber = FileGrabber(self.app_icon, self.service.upload_callback)
         self.create_menu()
 
     def show_ind_menu(self, icon, button, time):
         self.menu.show_all()
-        self.menu.popup(None, None, gtk.status_icon_position_menu, button, time, self.ind)
+        self.menu.popup(None, None, Gtk.status_icon_position_menu, button, time, self.ind)
 
     def read_settings(self):
         self.config = config = ConfigParser.RawConfigParser()
@@ -149,21 +132,11 @@ class IndicatorFileshare(threading.Thread):
         except Exception as e:
             log.error("Error: %s" % str(e))
             self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](self, config, log)
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
     #def read_settings(self)
 
     def save_settings(self):
-        self.config = config = ConfigParser.RawConfigParser()
-        try:
-            config = self.service.save_settings(config)
-            if not config.has_section("SERVICE"):
-                config.add_section("SERVICE")
-            config.set("SERVICE", "name", self.SERVICE_NAME)
-            with open(CONFIG_FILE, 'w+') as configfile:
-                os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
-                config.write(configfile)
-        except Exception as e:
-            log.error("Error: %s" % str(e))
+        self.service.save_settings()
 
     def check_autostart(self):
         autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
@@ -191,105 +164,104 @@ class IndicatorFileshare(threading.Thread):
         return VERSION
 
     def create_menu(self):
-        self.menu = gtk.Menu()
+        self.menu = Gtk.Menu()
         # Create menu items
         ##Grab screen area
-        screen_area_grab = gtk.MenuItem("Select screen area to grab...")
+        screen_area_grab = Gtk.MenuItem("Select screen area to grab...")
         self.menu.append(screen_area_grab)
         screen_area_grab.connect("activate", self.grab_screen_area)
         screen_area_grab.show()
 
         ##Open current service site in the browser
-        self.open_site_url = open_site_url = gtk.MenuItem("Open " + self.SERVICE_NAME)
+        self.open_site_url = open_site_url = Gtk.MenuItem("Open " + self.SERVICE_NAME)
         self.menu.append(open_site_url)
         open_site_url.connect("activate", self.open_site)
         open_site_url.show()
 
         ##Widget for grabbing files
-        grab_files = gtk.MenuItem("Show/hide File Grabber")
+        grab_files = Gtk.MenuItem("Show/hide File Grabber")
         grab_files.connect("activate", self.toggle_file_grabber)
         grab_files.show()
         self.menu.append(grab_files)
 
         ##Breaker
-        breaker = gtk.SeparatorMenuItem()
+        breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
         ##About
-        about_show = gtk.MenuItem("About...")
+        about_show = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_ABOUT, None)
         about_show.connect("activate", self.about)
         about_show.show()
         self.menu.append(about_show)
 
         ##Breaker
-        breaker = gtk.SeparatorMenuItem()
+        breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
         ##Log in
-        self.login_menu = gtk.Menu()
-        self.imgur_login_menu = gtk.MenuItem("...to Imgur")
+        self.login_menu = Gtk.Menu()
+        self.imgur_login_menu = Gtk.MenuItem("...to Imgur")
         self.imgur_login_menu.connect("activate", self.login, "Imgur")
         self.login_menu.append(self.imgur_login_menu)
-        self.droplr_login_menu = gtk.MenuItem("...to Droplr")
+        self.droplr_login_menu = Gtk.MenuItem("...to Droplr")
         self.droplr_login_menu.connect("activate", self.login, "Droplr")
         self.droplr_login_menu.set_sensitive(False)
         self.login_menu.append(self.droplr_login_menu)
         self.login_menu.show_all()
         if not self.service.is_logged_in():
-            self.auth = auth = gtk.MenuItem("Log in...")
+            self.auth = auth = Gtk.MenuItem("Log in...")
             self.auth.set_submenu(self.login_menu)
         else:
             if not self.service.get_username():
                 self.service.refresh_access_token() # is done to get username
-            string = "Log out (" + self.SERVICE_NAME
+            string = "Log out ({}".format(self.SERVICE_NAME)
             if self.service.get_username():
-                string = string + ", " + self.service.get_username()
-            string += ")"
-            self.auth = auth = gtk.MenuItem(string)
+                string = "{}, {}".format(string, self.service.get_username())
+            string = "{})".format(string)
+            self.auth = auth = Gtk.MenuItem(string)
             self.auth_id = auth.connect("activate", self.logout)
         auth.show_all()
         self.menu.append(auth)
 
         ##Breaker
-        breaker = gtk.SeparatorMenuItem()
+        breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
         ##Quit
-        quit = gtk.ImageMenuItem(gtk.STOCK_QUIT)
+        quit = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_QUIT, None)
         quit.connect("activate", self.quit)
         quit.show()
         self.menu.append(quit)
-
-        if IS_LINUX:
-            self.ind.set_menu(self.menu)
+        self.ind.set_menu(self.menu)
     #def create_menu(self)
 
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](self, self.config, log)
-        self.open_site_url.set_label("Open " + self.SERVICE_NAME)
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, None, CONFIG_FILE, log)
+        self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
 
     def login(self, widget, *data):
         self.config.read(CONFIG_FILE)
         self.SERVICE_NAME = data[0]
-        self.open_site_url.set_label("Open " + self.SERVICE_NAME)
-        self.service = globals()[self.SERVICE_NAME](self, self.config, log)
+        self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
         self.service.login()
         if self.service.is_logged_in():
             log.debug("Logged in")
-            string = "Log out (" + self.SERVICE_NAME
+            string = "Log out ({}".format(self.SERVICE_NAME)
             if self.service.get_username():
-                string = string + ", " + self.service.get_username()
-            string += ")"
+                string = "{}, {}".format(string, self.service.get_username())
+            string = "{})".format(string)
             self.auth.set_label(string)
-            self.auth.remove_submenu()
+            self.auth.set_submenu(None)
             self.auth_id = self.auth.connect("activate", self.logout)
             self.save_settings()
         else:
             self.set_default_service()
+        self.file_grabber.set_upload_callback(self.service.upload_callback)
         return False
 
     def logout(self, widget):
@@ -302,94 +274,10 @@ class IndicatorFileshare(threading.Thread):
         self.imgur_login_menu.connect("activate", self.login, "Imgur")
         self.auth.set_submenu(self.login_menu)
         self.save_settings()
+        self.file_grabber.set_upload_callback(self.service.upload_callback)
 
     def grab_screen_area(self, widget):
-        ScreenGrabber(self.select_area_event_handler, log)
-
-    def select_area_event_handler(self, widget, event, selector):
-        if event.type == gtk.gdk.MOTION_NOTIFY:
-            selector.redraw(event.x, event.y)
-        elif event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
-            selector.start_selection(event.x, event.y)
-        elif event.type == gtk.gdk.BUTTON_RELEASE and event.button == 1:
-            selector.stop_selection(event.x, event.y)
-            selector.set_complete_handler(self.take_screen_of_area_complete_handler)
-            selector.__del__()
-            del selector
-        elif (event.type == gtk.gdk.BUTTON_PRESS and event.button == 3) or (
-                    event.type == gtk.gdk.KEY_PRESS and event.keyval == gtk.gdk.keyval_from_name('Escape')):
-            selector.__del__()
-            del selector
-
-    def take_screen_of_area_complete_handler(self, x, y, width, height):
-        root = gtk.gdk.get_default_root_window()
-        pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, width, height)
-        pixbuf = pixbuf.get_from_drawable(root, root.get_colormap(), x, y, 0, 0, width, height)
-        self.gtk_screen_image = pixbuf
-        # Call preview window
-        self.preview_screen_of_area()
-
-    def upload_from_pixmap(self):
-        (fp, temp_img_file) = tempfile.mkstemp('.png')
-        os.close(fp)
-        self.gtk_screen_image.save(temp_img_file, "png")
-        self.file_grabber.upload_file(temp_img_file, remove=True)
-
-    def preview_screen_of_area(self):
-        def response(dialog, resp_id):
-            if resp_id == gtk.RESPONSE_UPLOAD:
-                self.upload_from_pixmap()
-
-        image = self.gtk_screen_image
-        gtk.RESPONSE_UPLOAD = 123
-        gtk.stock_add([(gtk.STOCK_GO_UP, "Upload", 0, 0, '')])
-        self.preview_dialog = preview_dialog = gtk.Dialog(title="Preview screenshot",
-                                                          flags=gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                                          buttons=(
-                                                              gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                                              gtk.STOCK_GO_UP, gtk.RESPONSE_UPLOAD))
-        preview_dialog.set_modal(True)
-        preview_dialog.set_decorated(False)
-        # Scale image for preview
-        preview_image_width = float(image.get_width())
-        preview_image_height = float(image.get_height())
-        MAX_WIDTH = 600
-        MAX_HEIGHT = 400
-        if preview_image_width / preview_image_height > MAX_WIDTH / MAX_HEIGHT:
-            preview_image_height = int(round((MAX_WIDTH / preview_image_width) * preview_image_height))
-            preview_image_width = MAX_WIDTH
-        else:
-            preview_image_width = int(round((MAX_HEIGHT / preview_image_height) * preview_image_width))
-            preview_image_height = MAX_HEIGHT
-        preview_image = image.scale_simple(preview_image_width, preview_image_height, gtk.gdk.INTERP_BILINEAR)
-        widget_image = gtk.image_new_from_pixbuf(preview_image)
-        widget_image.show()
-        preview_dialog.vbox.add(widget_image)
-        preview_dialog.connect('response', response)
-        preview_dialog.run()
-        preview_dialog.destroy()
-
-    def show_notification(self, message):
-        if IS_LINUX:
-            pynotify.init("Fileshare")
-            notify = pynotify.Notification("Fileshare", message, self.app_icon)
-            notify.show()
-        else:
-            popup = gtk.Window(gtk.WINDOW_POPUP)
-            popup.set_decorated(False)
-            popup.set_has_frame(False)
-            popup.set_skip_taskbar_hint(True)
-            popup.set_skip_pager_hint(True)
-            popup.set_can_focus(False)
-            popup.set_accept_focus(False)
-            popup.set_keep_above(True)
-            popup.move(10, 10)
-            popup.set_opacity(0.9)
-            popup_message = gtk.Label("Fileshare: " + message)
-            popup.add(popup_message)
-            popup.show_all()
-            gobject.timeout_add(5000, popup.destroy)
-
+        ScreenGrabber(self.service.upload_callback, log)
 
     ##########################################################################
     def open_site(self, widget):
@@ -402,19 +290,16 @@ class IndicatorFileshare(threading.Thread):
     ##########################################################################
     def about(self, widget):
         log.debug("Indicator: open About dialog")
-        self.about_dialog = gtk.AboutDialog()
+        self.about_dialog = Gtk.AboutDialog()
         self.about_dialog.set_name("Fileshare Indicator")
         self.about_dialog.set_version(VERSION)
 
-        if IS_LINUX:
-            ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
-        else:
-            ifile = open("./AUTHORS", "r")
+        ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
         self.about_dialog.set_website("http://aikikode.github.com/fileshare/")
-        self.about_dialog.set_logo(gtk.gdk.pixbuf_new_from_file(self.app_icon))
+        self.about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file(self.app_icon))
         self.about_dialog.connect("response", self.about_close)
         self.about_dialog.show()
     #def about(self, widget)
@@ -428,13 +313,13 @@ class IndicatorFileshare(threading.Thread):
     def quit(self, widget, data=None):
         self.save_settings()
         log.debug("Indicator: Quitting")
-        gtk.main_quit()
+        Gtk.main_quit()
 #class IndicatorFileshare(threading.Thread)
 
 
 ##############################################################################
 def main():
-    gtk.main()
+    Gtk.main()
     return 0
 
 
