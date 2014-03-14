@@ -183,25 +183,26 @@ class ScreenGrabber(threading.Thread):
             if resp_id == Gtk.ResponseType.OK:
                 self.upload_from_pixmap()
         image = self.gtk_screen_image
-        self.preview_dialog = preview_dialog = Gtk.Dialog(title="Preview screenshot",
-                                                          flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                                                          buttons=(
-                                                              Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                                                              "Upload", Gtk.ResponseType.OK))
+        preview_dialog = Gtk.Dialog(title="Preview screenshot",
+                                    flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                    buttons=(
+                                        Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                                        "Upload", Gtk.ResponseType.OK))
         preview_dialog.set_default_response(Gtk.ResponseType.OK)
         preview_dialog.set_modal(True)
         preview_dialog.set_decorated(False)
+        preview_dialog.set_resizable(False)
         # Scale image for preview
         preview_image_width = float(image.get_width())
         preview_image_height = float(image.get_height())
-        MAX_WIDTH = 600
-        MAX_HEIGHT = 400
-        if preview_image_width / preview_image_height > MAX_WIDTH / MAX_HEIGHT:
-            preview_image_height = int(round((MAX_WIDTH / preview_image_width) * preview_image_height))
-            preview_image_width = MAX_WIDTH
+        MAX_PREVIEW_WIDTH = 800
+        MAX_PREVIEW_HEIGHT = 600
+        if preview_image_width / preview_image_height > MAX_PREVIEW_WIDTH / MAX_PREVIEW_HEIGHT:
+            preview_image_height = int(round((MAX_PREVIEW_WIDTH / preview_image_width) * preview_image_height))
+            preview_image_width = MAX_PREVIEW_WIDTH
         else:
-            preview_image_width = int(round((MAX_HEIGHT / preview_image_height) * preview_image_width))
-            preview_image_height = MAX_HEIGHT
+            preview_image_width = int(round((MAX_PREVIEW_HEIGHT / preview_image_height) * preview_image_width))
+            preview_image_height = MAX_PREVIEW_HEIGHT
         preview_image = image.scale_simple(preview_image_width, preview_image_height, GdkPixbuf.InterpType.BILINEAR)
         widget_image = Gtk.Image.new_from_pixbuf(preview_image)
         widget_image.show()
@@ -245,7 +246,7 @@ class ScreenGrabber(threading.Thread):
             """
             draw 2 lines crossing at the cursor
             """
-            ctx.set_source_rgba(255.0, 255.0, 255.0, 0.7)
+            ctx.set_source_rgba(255.0, 255.0, 255.0, 0.3)
             ctx.move_to(x, 0)
             ctx.rel_line_to(0, self.screenHeight)
             ctx.move_to(0, y)
@@ -260,11 +261,10 @@ class ScreenGrabber(threading.Thread):
         ctx.set_antialias(cairo.ANTIALIAS_NONE)
         ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
         ctx.paint()
+        draw_cross(ctx, x, y)
         if not self.selected:
-            draw_cross(ctx, x, y)
             return False
-        else:
-            draw_cross(ctx, self.selection_x_start, self.selection_y_start)
+        draw_cross(ctx, self.selection_x_start, self.selection_y_start)
         # recalculate the selected rectangle
         rLefx = min(self.selection_x_start, x)
         rTopy = min(self.selection_y_start, y)
