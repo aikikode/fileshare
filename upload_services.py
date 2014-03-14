@@ -55,10 +55,9 @@ class UploadBase(threading.Thread):
     """ All web image services classes should inherit this class """
     __metaclass__ = ABCMeta   # abstract class
 
-    def __init__(self, app_icon, IS_LINUX=True):
+    def __init__(self, app_icon):
         threading.Thread.__init__(self)
         self.app_icon = app_icon
-        self.is_linux = IS_LINUX
         #self.cb = Gtk.Clipboard()
         self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
 
@@ -91,25 +90,9 @@ class UploadBase(threading.Thread):
         pass
 
     def show_notification(self, message):
-        if self.is_linux:
-            Notify.init("Fileshare")
-            notify = Notify.Notification.new("Fileshare", message, self.app_icon)
-            notify.show()
-        else:
-            popup = Gtk.Window(Gtk.WINDOW_POPUP)
-            popup.set_decorated(False)
-            popup.set_has_frame(False)
-            popup.set_skip_taskbar_hint(True)
-            popup.set_skip_pager_hint(True)
-            popup.set_can_focus(False)
-            popup.set_accept_focus(False)
-            popup.set_keep_above(True)
-            popup.move(10, 10)
-            popup.set_opacity(0.9)
-            popup_message = Gtk.Label("Fileshare: " + message)
-            popup.add(popup_message)
-            popup.show_all()
-            GObject.timeout_add(5000, popup.destroy)
+        Notify.init("Fileshare")
+        notify = Notify.Notification.new("Fileshare", message, self.app_icon)
+        notify.show()
 
     def show_result(self, url):
         self.cb.set_text(url, -1)
@@ -125,8 +108,8 @@ class UploadBase(threading.Thread):
 
 
 class Imgur(UploadBase):
-    def __init__(self, IS_LINUX, app_icon, config, config_file, log):
-        UploadBase.__init__(self, app_icon, IS_LINUX)
+    def __init__(self, app_icon, config, config_file, log):
+        UploadBase.__init__(self, app_icon)
         # API v3
         self._client_id = "813588ae4b2b41a"
         self._client_secret = "1cc11d1006c90d0e184daa29085a015e24cd6705"
@@ -301,8 +284,8 @@ class Imgur(UploadBase):
 
 
 class Droplr(UploadBase):
-    def __init__(self, IS_LINUX, app_icon, config, config_file, log):
-        UploadBase.__init__(self, app_icon, IS_LINUX)
+    def __init__(self, app_icon, config, config_file, log):
+        UploadBase.__init__(self, app_icon)
         self._public_key = ""
         self._private_key = ""
         self.log = log

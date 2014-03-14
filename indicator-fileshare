@@ -41,12 +41,7 @@ import commands
 # for delayed actions
 import errno
 import getpass
-if os.name == "nt":
-    IS_LINUX = False
-    import subprocess
-else:
-    IS_LINUX = True
-    from gi.repository import AppIndicator3 as appindicator
+from gi.repository import AppIndicator3 as appindicator
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -80,10 +75,7 @@ class SingleInstance(object):
             # Make sure it is not a "stale" pidFile
             pid = open(pidPath, 'r').read().strip()
             # Check list of running pids, if not running it is stale so overwrite
-            if IS_LINUX:
-                pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
-            else:
-                pidRunning = None if "No tasks are running" in subprocess.check_output('tasklist /V /FI "PID eq %s"' % pid) else pid
+            pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
             log.debug("SingleInstance: pid running %s" % pidRunning)
             self.lasterror = True if pidRunning else False
         else:
@@ -117,25 +109,14 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        if IS_LINUX:
-            self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
-        else:
-            self.app_icon = "./icons/app_icon.png"
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.read_settings()
         self.check_autostart()
-        if IS_LINUX:
-            self.ind = appindicator.Indicator.new("fileshare-services-client",
-                                              "indicator-fileshare",
-                                              appindicator.IndicatorCategory.APPLICATION_STATUS)
-            self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
-            self.ind.set_icon(self.app_icon)
-        else:
-            self.ind = Gtk.StatusIcon()
-            self.ind.set_from_file(self.app_icon)
-            self.ind.set_title("Fileshare")
-            self.ind.set_name("Fileshare")
-            self.ind.set_tooltip_text("Fileshare")
-            self.ind.connect("popup-menu", self.show_ind_menu)
+        self.ind = appindicator.Indicator.new("fileshare-services-client",
+                                          "indicator-fileshare",
+                                          appindicator.IndicatorCategory.APPLICATION_STATUS)
+        self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
+        self.ind.set_icon(self.app_icon)
         self.file_grabber = FileGrabber(self.app_icon, self.service.upload_callback)
         self.create_menu()
 
@@ -151,7 +132,7 @@ class IndicatorFileshare(threading.Thread):
         except Exception as e:
             log.error("Error: %s" % str(e))
             self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](IS_LINUX, self.app_icon, self.config, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
     #def read_settings(self)
 
     def save_settings(self):
@@ -254,21 +235,19 @@ class IndicatorFileshare(threading.Thread):
         quit.connect("activate", self.quit)
         quit.show()
         self.menu.append(quit)
-
-        if IS_LINUX:
-            self.ind.set_menu(self.menu)
+        self.ind.set_menu(self.menu)
     #def create_menu(self)
 
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](IS_LINUX, self.app_icon, None, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, None, CONFIG_FILE, log)
         self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
 
     def login(self, widget, *data):
         self.config.read(CONFIG_FILE)
         self.SERVICE_NAME = data[0]
         self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
-        self.service = globals()[self.SERVICE_NAME](IS_LINUX, self.app_icon, self.config, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
         self.service.login()
         if self.service.is_logged_in():
             log.debug("Logged in")
@@ -315,10 +294,7 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_name("Fileshare Indicator")
         self.about_dialog.set_version(VERSION)
 
-        if IS_LINUX:
-            ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
-        else:
-            ifile = open("./AUTHORS", "r")
+        ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
