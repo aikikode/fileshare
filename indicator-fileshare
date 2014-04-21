@@ -109,7 +109,7 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
         self.read_settings()
         self.check_autostart()
         self.ind = appindicator.Indicator.new("fileshare-services-client",
@@ -117,7 +117,8 @@ class IndicatorFileshare(threading.Thread):
                                           appindicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
         self.ind.set_icon(self.app_icon)
-        self.file_grabber = FileGrabber(self.app_icon, self.service.upload_callback)
+        file_grabber_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.file_grabber = FileGrabber(file_grabber_icon, self.service.upload_callback)
         self.create_menu()
 
     def show_ind_menu(self, icon, button, time):
