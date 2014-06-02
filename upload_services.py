@@ -143,8 +143,6 @@ class Imgur(UploadBase):
                     self._refresh_token = str(resp["refresh_token"])
                     self.refresh_access_token() # is done to get username
                     self.show_notification("Successfully logged in to Imgur")
-
-        #def auth_response(dialog, resp_id)
         # Open browser windows and prompt for access to Imgur account
         webbrowser.open(
             "https://api.imgur.com/oauth2/authorize?client_id=" + self._client_id + "&response_type=pin&state=APPLICATION_STATE")
@@ -323,8 +321,6 @@ class Droplr(UploadBase):
                 self._authorization_header = base64.b64encode(self._public_key + ":" + self._login)
                 if not self.are_credentials_ok():
                     self.relogin()
-
-        #def auth_response(dialog, resp_id)
         # Window to enter email and password
         pin_dialog = Gtk.Dialog(title="Droplr Login",
                                 flags=Gtk.DIALOG_DESTROY_WITH_PARENT,

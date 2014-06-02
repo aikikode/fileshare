@@ -109,7 +109,7 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
         self.read_settings()
         self.check_autostart()
         self.ind = appindicator.Indicator.new("fileshare-services-client",
@@ -117,7 +117,8 @@ class IndicatorFileshare(threading.Thread):
                                           appindicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
         self.ind.set_icon(self.app_icon)
-        self.file_grabber = FileGrabber(self.app_icon, self.service.upload_callback)
+        file_grabber_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.file_grabber = FileGrabber(file_grabber_icon, self.service.upload_callback)
         self.create_menu()
 
     def show_ind_menu(self, icon, button, time):
@@ -271,7 +272,6 @@ class IndicatorFileshare(threading.Thread):
         self.set_default_service()
         self.auth.set_label("Log in...")
         self.auth.disconnect(self.auth_id)
-        self.imgur_login_menu.connect("activate", self.login, "Imgur")
         self.auth.set_submenu(self.login_menu)
         self.save_settings()
         self.file_grabber.set_upload_callback(self.service.upload_callback)
