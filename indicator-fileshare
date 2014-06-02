@@ -272,7 +272,6 @@ class IndicatorFileshare(threading.Thread):
         self.set_default_service()
         self.auth.set_label("Log in...")
         self.auth.disconnect(self.auth_id)
-        self.imgur_login_menu.connect("activate", self.login, "Imgur")
         self.auth.set_submenu(self.login_menu)
         self.save_settings()
         self.file_grabber.set_upload_callback(self.service.upload_callback)
