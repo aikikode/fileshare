@@ -210,7 +210,7 @@ class Imgur(UploadBase):
                 self._access_token = str(resp['access_token'])
                 self._refresh_token = str(resp['refresh_token'])
                 self._username = str(resp['account_username'])
-                self.save_settings()
+                self.app_icon.save_settings()  # to also save application settings
                 return True
             else:
                 self.logout()

@@ -23,6 +23,7 @@
 # License version 3 and version 2.1 along with this program.  If not, see
 # <http://www.gnu.org/licenses>
 #
+import stat
 
 _author__ = 'aikikode'
 
@@ -31,6 +32,7 @@ from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GObject
 from gi.repository import GdkPixbuf
+from gi.repository import Keybinder
 
 import sys, os, shutil, tempfile
 import ConfigParser
@@ -54,7 +56,7 @@ DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploa
 
 GObject.threads_init()
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -110,6 +112,7 @@ class IndicatorFileshare(threading.Thread):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
         self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
+        self._keymap = "<Super>P"
         self.read_settings()
         self.check_autostart()
         self.ind = appindicator.Indicator.new("fileshare-services-client",
@@ -120,6 +123,9 @@ class IndicatorFileshare(threading.Thread):
         file_grabber_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
         self.file_grabber = FileGrabber(file_grabber_icon, self.service.upload_callback)
         self.create_menu()
+        # setup hotkey
+        Keybinder.init()
+        Keybinder.bind(self._keymap, self.grab_screen_area)
 
     def show_ind_menu(self, icon, button, time):
         self.menu.show_all()
@@ -128,16 +134,37 @@ class IndicatorFileshare(threading.Thread):
     def read_settings(self):
         self.config = config = ConfigParser.RawConfigParser()
         try:
-            config.read(CONFIG_FILE)
-            self.SERVICE_NAME = config.get("SERVICE", "name")
+            self.config.read(CONFIG_FILE)
         except Exception as e:
             log.error("Error: %s" % str(e))
-            self.SERVICE_NAME = DEFAULT_SERVICE_NAME
+        else:
+            try:
+                self.SERVICE_NAME = config.get("SERVICE", "name")
+            except Exception as e:
+                log.error("Error: %s" % str(e))
+                self.SERVICE_NAME = DEFAULT_SERVICE_NAME
+            try:
+                self._keymap = config.get("KEYMAP", "grabscreen")
+            except Exception as e:
+                log.error("Error: %s" % str(e))
+                self._keymap = "<Super>P"
         self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
     #def read_settings(self)
 
     def save_settings(self):
         self.service.save_settings()
+        # Save keymap
+        config = ConfigParser.RawConfigParser()
+        try:
+            if not config.has_section("KEYMAP"):
+                config.add_section("KEYMAP")
+            config.set("KEYMAP", "grabscreen", self._keymap)
+            with open(CONFIG_FILE, 'a') as configfile:
+                os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
+                config.write(configfile)
+        except Exception as e:
+            log.error("Error: %s" % str(e))
+
 
     def check_autostart(self):
         autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
