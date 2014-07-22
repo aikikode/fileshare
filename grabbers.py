@@ -27,7 +27,7 @@
 import os
 import tempfile
 
-_author__ = 'aikikode'
+__author__ = 'aikikode'
 
 #import gtk
 from gi.repository import Gtk

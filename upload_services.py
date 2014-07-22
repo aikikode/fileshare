@@ -28,7 +28,7 @@ import ConfigParser
 from gi.repository import Notify
 import stat
 
-_author__ = 'aikikode'
+__author__ = 'aikikode'
 
 #import gtk
 from gi.repository import Gtk
@@ -44,7 +44,8 @@ import base64
 import json
 from abc import ABCMeta, abstractmethod
 # For Droplr hashed requests
-import hashlib, hmac
+import hashlib
+import hmac
 import time
 import urllib
 import urllib2
@@ -55,9 +56,9 @@ class UploadBase(threading.Thread):
     """ All web image services classes should inherit this class """
     __metaclass__ = ABCMeta   # abstract class
 
-    def __init__(self, app_icon):
+    def __init__(self, app):
         threading.Thread.__init__(self)
-        self.app_icon = app_icon
+        self.app = app
         #self.cb = Gtk.Clipboard()
         self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
 
@@ -91,7 +92,7 @@ class UploadBase(threading.Thread):
 
     def show_notification(self, message):
         Notify.init("Fileshare")
-        notify = Notify.Notification.new("Fileshare", message, self.app_icon)
+        notify = Notify.Notification.new("Fileshare", message, self.app.app_icon)
         notify.show()
 
     def show_result(self, url):
@@ -108,8 +109,8 @@ class UploadBase(threading.Thread):
 
 
 class Imgur(UploadBase):
-    def __init__(self, app_icon, config, config_file, log):
-        UploadBase.__init__(self, app_icon)
+    def __init__(self, app, config, config_file, log):
+        UploadBase.__init__(self, app)
         # API v3
         self._client_id = "813588ae4b2b41a"
         self._client_secret = "1cc11d1006c90d0e184daa29085a015e24cd6705"
@@ -120,7 +121,7 @@ class Imgur(UploadBase):
             self._access_token = config.get("IMGUR", "access_token")
             self._refresh_token = config.get("IMGUR", "refresh_token")
             self._username = config.get("IMGUR", "username")
-        except Exception as e:
+        except Exception:
             self._access_token = ""
             self._refresh_token = ""
             self._username = ""
@@ -141,7 +142,7 @@ class Imgur(UploadBase):
                 if "access_token" in resp:
                     self._access_token = str(resp["access_token"])
                     self._refresh_token = str(resp["refresh_token"])
-                    self.refresh_access_token() # is done to get username
+                    self.refresh_access_token()  # is done to get username
                     self.show_notification("Successfully logged in to Imgur")
         # Open browser windows and prompt for access to Imgur account
         webbrowser.open(
@@ -210,7 +211,7 @@ class Imgur(UploadBase):
                 self._access_token = str(resp['access_token'])
                 self._refresh_token = str(resp['refresh_token'])
                 self._username = str(resp['account_username'])
-                self.app_icon.save_settings()  # to also save application settings
+                self.app.save_settings()  # to also save application settings
                 return True
             else:
                 self.logout()
@@ -277,13 +278,12 @@ class Imgur(UploadBase):
         self._access_token = ""
         self._refresh_token = ""
         self._username = ""
-
 #class Imgur()
 
 
 class Droplr(UploadBase):
-    def __init__(self, app_icon, config, config_file, log):
-        UploadBase.__init__(self, app_icon)
+    def __init__(self, app, config, config_file, log):
+        UploadBase.__init__(self, app)
         self._public_key = ""
         self._private_key = ""
         self.log = log
@@ -479,5 +479,4 @@ class Droplr(UploadBase):
 
         def get_data(self):
             return self.dict if not self.is_error() else None
-
 #class Droplr()
