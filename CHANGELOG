@@ -1,3 +1,9 @@
+v0.5.4
+  Fixes:
+  - Image not uploaded on access token expire
+  - Small About dialog app logo
+
+
 v0.5.3
   New Features:
   - Add keyboard shortcut to grab screen

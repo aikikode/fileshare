@@ -25,20 +25,23 @@
 #
 import stat
 
-_author__ = 'aikikode'
+__author__ = 'aikikode'
 
 #import gtk
 from gi.repository import Gtk
-from gi.repository import Gdk
 from gi.repository import GObject
 from gi.repository import GdkPixbuf
 from gi.repository import Keybinder
 
-import sys, os, shutil, tempfile
+import sys
+import os
+import shutil
+import tempfile
 import ConfigParser
 import threading
 import webbrowser
-import logging, logging.handlers
+import logging
+import logging.handlers
 import commands
 # for delayed actions
 import errno
@@ -56,13 +59,14 @@ DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploa
 
 GObject.threads_init()
 
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
 
 if not os.path.isdir(CONFIG_DIR):
     os.mkdir(CONFIG_DIR)
+
 
 ##############################################################################
 class SingleInstance(object):
@@ -102,7 +106,6 @@ class SingleInstance(object):
         if not self.lasterror:
             log.debug("SingleInstance: deleting %s" % self.pidPath)
             os.unlink(self.pidPath)
-            #def __del__(self)
 #class SingleInstance(object)
 
 
@@ -111,7 +114,8 @@ class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug("Indicator: creating")
         threading.Thread.__init__(self)
-        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
+        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.app_icon_panel = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
         self._keymap = "<Super>P"
         self.read_settings()
         self.check_autostart()
@@ -119,8 +123,8 @@ class IndicatorFileshare(threading.Thread):
                                           "indicator-fileshare",
                                           appindicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
-        self.ind.set_icon(self.app_icon)
-        file_grabber_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
+        self.ind.set_icon(self.app_icon_panel)
+        file_grabber_icon = self.app_icon
         self.file_grabber = FileGrabber(file_grabber_icon, self.service.upload_callback)
         self.create_menu()
         # setup hotkey
@@ -148,7 +152,7 @@ class IndicatorFileshare(threading.Thread):
             except Exception as e:
                 log.error("Error: %s" % str(e))
                 self._keymap = "<Super>P"
-        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
     #def read_settings(self)
 
     def save_settings(self):
@@ -243,7 +247,7 @@ class IndicatorFileshare(threading.Thread):
             self.auth.set_submenu(self.login_menu)
         else:
             if not self.service.get_username():
-                self.service.refresh_access_token() # is done to get username
+                self.service.refresh_access_token()  # is done to get username
             string = "Log out ({}".format(self.SERVICE_NAME)
             if self.service.get_username():
                 string = "{}, {}".format(string, self.service.get_username())
@@ -268,14 +272,14 @@ class IndicatorFileshare(threading.Thread):
 
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
-        self.service = globals()[self.SERVICE_NAME](self.app_icon, None, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self, None, CONFIG_FILE, log)
         self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
 
     def login(self, widget, *data):
         self.config.read(CONFIG_FILE)
         self.SERVICE_NAME = data[0]
         self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
-        self.service = globals()[self.SERVICE_NAME](self.app_icon, self.config, CONFIG_FILE, log)
+        self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
         self.service.login()
         if self.service.is_logged_in():
             log.debug("Logged in")
