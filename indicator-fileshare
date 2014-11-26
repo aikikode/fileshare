@@ -27,11 +27,11 @@ import stat
 
 __author__ = 'aikikode'
 
-#import gtk
+from gi.repository import AppIndicator3 as appindicator
+# import gtk
 from gi.repository import Gtk
 from gi.repository import GObject
 from gi.repository import GdkPixbuf
-from gi.repository import Keybinder
 
 import sys
 import os
@@ -46,7 +46,6 @@ import commands
 # for delayed actions
 import errno
 import getpass
-from gi.repository import AppIndicator3 as appindicator
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -128,8 +127,12 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber = FileGrabber(file_grabber_icon, self.service.upload_callback)
         self.create_menu()
         # setup hotkey
-        Keybinder.init()
-        Keybinder.bind(self._keymap, self.grab_screen_area)
+        try:
+            from gi.repository import Keybinder
+            Keybinder.init()
+            Keybinder.bind(self._keymap, self.grab_screen_area)
+        except ImportError:
+            pass
 
     def show_ind_menu(self, icon, button, time):
         self.menu.show_all()

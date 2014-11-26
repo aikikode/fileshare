@@ -29,7 +29,13 @@ this will create deb package
 # dpkg -i <deb file>
 ```
 
-###Custom keyboard shortcut
+###Custom keyboard shortcut  
+Please, note, that not all systems support hotkeys. To check whether your system supports them, open Python console and type:  
+```bash
+from gi.repository import Keybinder
+```  
+If there's no error, shortcuts should work fine.  
+
 By default the keyboard shortcut is "\<Super>P".  
 In case it conflicts with your system or you'd like to change it, perform the following:  
 
