@@ -1,3 +1,8 @@
+v0.5.4.1
+  Fixes:
+  - Logging uses format
+
+
 v0.5.4
   Fixes:
   - Image not uploaded on access token expire

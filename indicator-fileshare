@@ -58,7 +58,7 @@ DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploa
 
 GObject.threads_init()
 
-VERSION = "0.5.4"
+VERSION = "0.5.4.1"
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
@@ -76,18 +76,18 @@ class SingleInstance(object):
         self.pidPath = pidPath
         # See if pidFile exists
         if os.path.exists(pidPath):
-            log.debug("SingleInstance: pid file %s exists" % pidPath)
+            log.debug("SingleInstance: pid file {} exists".format(pidPath))
             # Make sure it is not a "stale" pidFile
             pid = open(pidPath, 'r').read().strip()
             # Check list of running pids, if not running it is stale so overwrite
-            pidRunning = commands.getoutput('ls -1 /proc | grep ^%s$' % pid)
-            log.debug("SingleInstance: pid running %s" % pidRunning)
+            pidRunning = commands.getoutput('ls -1 /proc | grep ^{}$'.format(pid))
+            log.debug("SingleInstance: pid running {}".format(pidRunning))
             self.lasterror = True if pidRunning else False
         else:
             self.lasterror = False
 
         if not self.lasterror:
-            log.debug("SingleInstance: writing new pid %s" % str(os.getpid()))
+            log.debug("SingleInstance: writing new pid {}".format(os.getpid()))
             # Create a temp file, copy it to pidPath and remove temporary file
             (fp, temp_path) = tempfile.mkstemp()
             try:
@@ -95,7 +95,9 @@ class SingleInstance(object):
                 shutil.copy(temp_path, pidPath)
                 os.unlink(temp_path)
             except Exception as e:
-                log.error("SingleInstance: exception while renaming '%s' to '%s':\n %s" % (temp_path, pidPath, str(e)))
+                log.error(
+                    "SingleInstance: exception while renaming '{}' to '{}':\n {}".format(temp_path, pidPath, str(e))
+                )
     #def __init__(self, pidPath)
 
     def is_already_running(self):
@@ -103,7 +105,7 @@ class SingleInstance(object):
 
     def __del__(self):
         if not self.lasterror:
-            log.debug("SingleInstance: deleting %s" % self.pidPath)
+            log.debug("SingleInstance: deleting {}".format(self.pidPath))
             os.unlink(self.pidPath)
 #class SingleInstance(object)
 
@@ -142,18 +144,18 @@ class IndicatorFileshare(threading.Thread):
         self.config = config = ConfigParser.RawConfigParser()
         try:
             self.config.read(CONFIG_FILE)
-        except Exception as e:
-            log.error("Error: %s" % str(e))
+        except Exception as ex:
+            log.error("Error: {}".format(ex))
         else:
             try:
                 self.SERVICE_NAME = config.get("SERVICE", "name")
-            except Exception as e:
-                log.error("Error: %s" % str(e))
+            except Exception as ex:
+                log.error("Error: {}".format(ex))
                 self.SERVICE_NAME = DEFAULT_SERVICE_NAME
             try:
                 self._keymap = config.get("KEYMAP", "grabscreen")
-            except Exception as e:
-                log.error("Error: %s" % str(e))
+            except Exception as ex:
+                log.error("Error: {}".format(ex))
                 self._keymap = "<Super>P"
         self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
     #def read_settings(self)
@@ -169,8 +171,8 @@ class IndicatorFileshare(threading.Thread):
             with open(CONFIG_FILE, 'a') as configfile:
                 os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except Exception as e:
-            log.error("Error: %s" % str(e))
+        except Exception as ex:
+            log.error("Error: {}".format(ex))
 
 
     def check_autostart(self):
@@ -379,10 +381,10 @@ if __name__ == "__main__":
 
     log.info("------------------------------")
     log.info("Started Fileshare Indicator")
-    log.info("Fileshare Indicator version %s" % VERSION)
+    log.info("Fileshare Indicator version {}".format(VERSION))
 
     # Single instance stuff for fileshare indicator
-    myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare-%s.pid" % getpass.getuser())
+    myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare-{}.pid".format(getpass.getuser()))
     # Check is another instance of same program running
     if myapp.is_already_running():
         log.info("Another instance of this program is already running")

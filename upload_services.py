@@ -193,8 +193,8 @@ class Imgur(UploadBase):
             with open(self.config_file, 'w+') as configfile:
                 os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error("Error: {}".format(ex))
 
     def refresh_access_token(self):
         if self._refresh_token:
@@ -254,9 +254,9 @@ class Imgur(UploadBase):
             self.log.debug("Response: " + self.response)
             if self._access_token and json.loads(self.response)['status'] == 403:
                 raise Exception('Auth token expired')
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
-            if str(e).startswith("HTTP Error 400"):
+        except Exception as ex:
+            self.log.error("Error: {}".format(ex))
+            if str(ex).startswith("HTTP Error 400"):
                 self.show_notification("Sorry, but Fileshare couldn't upload the file of this type.")
             else:
                 if self._access_token and self.refresh_access_token():
@@ -265,13 +265,13 @@ class Imgur(UploadBase):
             resp_dict = json.loads(self.response)
             url = resp_dict['data']['link']
             self.show_result(url)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error("Error: {}".format(ex))
         if remove:
             try:
                 os.remove(image)
-            except OSError, e:
-                self.log.debug("Error: %s - %s" % (e.filename, e.strerror))
+            except OSError as ex:
+                self.log.debug("Error: {} - {}".format(ex.filename, ex.strerror))
         return False  # return False not to be called again as callback
 
     def logout(self):
@@ -294,8 +294,8 @@ class Droplr(UploadBase):
             self._login = config.get("DROPLR", "email")
             self._password_sha1 = config.get("DROPLR", "password")
             self._authorization_header = base64.b64encode(self._public_key + ":" + self._login)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error("Error: {}".format(ex))
             self._login = ""
             self._password_sha1 = ""
             self._authorization_header = ""
@@ -391,8 +391,8 @@ class Droplr(UploadBase):
             with open(self.config_file, 'w+') as configfile:
                 os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error("Error: {}".format(ex))
 
         return config
 
@@ -402,14 +402,14 @@ class Droplr(UploadBase):
 
     def perform_request(self, method, uri, date, content_type, data, params):
         self.response = ''
-        string_to_sign = "%s /%s.json HTTP/1.1\n%s\n%s" % (method, uri, content_type, date)
+        string_to_sign = "{} /{}.json HTTP/1.1\n{}\n{}".format(method, uri, content_type, date)
         signature = self.create_signature(string_to_sign)
 
-        url = '%s/%s.json' % (self.api_url, uri)
+        url = '{}/{}.json'.format(self.api_url, uri)
         if params:
             url += "?" + urllib.urlencode(params)
         headers = {}
-        headers["Authorization"] = "droplr %s:%s" % (self._authorization_header, signature)
+        headers["Authorization"] = "droplr {}:{}".format(self._authorization_header, signature)
         headers["Date"] = date
         if data:
             headers["Content-Length"] = len(data)
@@ -454,8 +454,8 @@ class Droplr(UploadBase):
             try:
                 url = dict['shortlink']
                 self.show_result(url)
-            except Exception as e:
-                self.log.error("Error: %s" % str(e))
+            except Exception as ex:
+                self.log.error("Error: {}".format(ex))
         if remove:
             os.remove(image)
         return False  # return False not to be called again as callback
