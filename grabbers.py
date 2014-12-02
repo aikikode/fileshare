@@ -24,20 +24,20 @@
 # <http://www.gnu.org/licenses>
 #
 
-import os
-import tempfile
 
 __author__ = 'aikikode'
 
-#import gtk
+
 from gi.repository import Gtk
 from gi.repository import Gdk
 from gi.repository import GObject
-import cairo
-import threading
-import re
-# for screen area grabber colors
 from gi.repository import GdkPixbuf
+
+import cairo
+import os
+import re
+import tempfile
+import threading
 
 FILE_GRABBER_SIZE = 50
 
@@ -94,9 +94,9 @@ class FileGrabber():
 
     def window_drag_data_received(self, wid, context, x, y, data, info, time):
         if data.get_text():
-            file_to_upload = data.get_text().splitlines()[0].replace("file://", "")
+            file_to_upload = data.get_text().splitlines()[0].replace('file://', '')
         else:
-            file_to_upload = data.get_data().splitlines()[0].replace("file://", "")
+            file_to_upload = data.get_data().splitlines()[0].replace('file://', '')
         file_to_upload = re.sub(r'/([^/]+:/)', r'\1/', file_to_upload)   # handle Win path
         context.finish(True, False, time)
         GObject.idle_add(self.upload_callback, file_to_upload, False)
@@ -109,7 +109,7 @@ class ScreenGrabber(threading.Thread):
         threading.Thread.__init__(self)
         self.upload_callback = upload_callback
         self.log = log
-        self.log.debug("ScreenGrabber: creating")
+        self.log.debug('ScreenGrabber: creating')
         self.selected = False
         self.screenWidth, self.screenHeight = Gdk.Screen.width(), Gdk.Screen.height()
         width, height = self.screenWidth, self.screenHeight
@@ -138,7 +138,7 @@ class ScreenGrabber(threading.Thread):
         drawingWindow.present()
         cursor = Gdk.Cursor(Gdk.CursorType.CROSSHAIR)
         drawingWindow.get_window().set_cursor(cursor)
-        drawingWindow.connect("draw", self.initial_draw)
+        drawingWindow.connect('draw', self.initial_draw)
         drawingWindow.connect('button-press-event', self.select_area_event_handler, self)
         drawingWindow.connect('button-release-event', self.select_area_event_handler, self)
         drawingWindow.connect('key-press-event', self.select_area_event_handler, self)
@@ -175,7 +175,7 @@ class ScreenGrabber(threading.Thread):
     def upload_from_pixmap(self):
         (fp, temp_img_file) = tempfile.mkstemp('.png')
         os.close(fp)
-        self.gtk_screen_image.savev(temp_img_file, "png", [], [])
+        self.gtk_screen_image.savev(temp_img_file, 'png', [], [])
         GObject.idle_add(self.upload_callback, temp_img_file, True)
 
     def preview_screen_of_area(self):
@@ -183,11 +183,11 @@ class ScreenGrabber(threading.Thread):
             if resp_id == Gtk.ResponseType.OK:
                 self.upload_from_pixmap()
         image = self.gtk_screen_image
-        preview_dialog = Gtk.Dialog(title="Preview screenshot",
+        preview_dialog = Gtk.Dialog(title='Preview screenshot',
                                     flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                     buttons=(
                                         Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                                        "Upload", Gtk.ResponseType.OK))
+                                        'Upload', Gtk.ResponseType.OK))
         preview_dialog.set_default_response(Gtk.ResponseType.OK)
         preview_dialog.set_modal(True)
         preview_dialog.set_decorated(False)
@@ -227,7 +227,7 @@ class ScreenGrabber(threading.Thread):
             if width > 10 and height > 10:
                 GObject.timeout_add(150, self.completeHandler, x, y, width, height)
             else:
-                self.log.debug("ScreenGrabber: selected area is too small")
+                self.log.debug('ScreenGrabber: selected area is too small')
         self.deleted = True
 
     def start_selection(self, x, y):

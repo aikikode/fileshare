@@ -23,29 +23,29 @@
 # License version 3 and version 2.1 along with this program.  If not, see
 # <http://www.gnu.org/licenses>
 #
-import stat
 
 __author__ = 'aikikode'
 
+
 from gi.repository import AppIndicator3 as appindicator
-# import gtk
 from gi.repository import Gtk
 from gi.repository import GObject
 from gi.repository import GdkPixbuf
 
-import sys
-import os
-import shutil
-import tempfile
 import ConfigParser
-import threading
-import webbrowser
+
+import errno
+import commands
+import getpass
 import logging
 import logging.handlers
-import commands
-# for delayed actions
-import errno
-import getpass
+import os
+import stat
+import sys
+import shutil
+import tempfile
+import threading
+import webbrowser
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -54,14 +54,14 @@ if APP_DIR not in sys.path:
 from upload_services import Imgur, Droplr
 from grabbers import FileGrabber, ScreenGrabber
 
-DEFAULT_SERVICE_NAME = "Imgur"  # Choose Imgur because it allows anonymous uploads
+DEFAULT_SERVICE_NAME = Imgur.__name__  # Choose Imgur because it allows anonymous uploads
 
 GObject.threads_init()
 
-VERSION = "0.5.4.1"
+VERSION = '0.5.4.1'
 
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".fileshare")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.cfg")
+CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')
 
 if not os.path.isdir(CONFIG_DIR):
     os.mkdir(CONFIG_DIR)
@@ -76,22 +76,22 @@ class SingleInstance(object):
         self.pidPath = pidPath
         # See if pidFile exists
         if os.path.exists(pidPath):
-            log.debug("SingleInstance: pid file {} exists".format(pidPath))
-            # Make sure it is not a "stale" pidFile
+            log.debug('SingleInstance: pid file {} exists'.format(pidPath))
+            # Make sure it is not a 'stale' pidFile
             pid = open(pidPath, 'r').read().strip()
             # Check list of running pids, if not running it is stale so overwrite
             pidRunning = commands.getoutput('ls -1 /proc | grep ^{}$'.format(pid))
-            log.debug("SingleInstance: pid running {}".format(pidRunning))
+            log.debug('SingleInstance: pid running {}'.format(pidRunning))
             self.lasterror = True if pidRunning else False
         else:
             self.lasterror = False
 
         if not self.lasterror:
-            log.debug("SingleInstance: writing new pid {}".format(os.getpid()))
+            log.debug('SingleInstance: writing new pid {}'.format(os.getpid()))
             # Create a temp file, copy it to pidPath and remove temporary file
             (fp, temp_path) = tempfile.mkstemp()
             try:
-                os.fdopen(fp, "w+b").write(str(os.getpid()))
+                os.fdopen(fp, 'w+b').write(str(os.getpid()))
                 shutil.copy(temp_path, pidPath)
                 os.unlink(temp_path)
             except Exception as e:
@@ -105,7 +105,7 @@ class SingleInstance(object):
 
     def __del__(self):
         if not self.lasterror:
-            log.debug("SingleInstance: deleting {}".format(self.pidPath))
+            log.debug('SingleInstance: deleting {}'.format(self.pidPath))
             os.unlink(self.pidPath)
 #class SingleInstance(object)
 
@@ -113,15 +113,15 @@ class SingleInstance(object):
 ##############################################################################
 class IndicatorFileshare(threading.Thread):
     def __init__(self):
-        log.debug("Indicator: creating")
+        log.debug('Indicator: creating')
         threading.Thread.__init__(self)
-        self.app_icon = "/usr/local/share/indicator-fileshare/media/app_icon.png"
-        self.app_icon_panel = "/usr/local/share/indicator-fileshare/media/app_icon_panel.png"
-        self._keymap = "<Super>P"
+        self.app_icon = '/usr/local/share/indicator-fileshare/media/app_icon.png'
+        self.app_icon_panel = '/usr/local/share/indicator-fileshare/media/app_icon_panel.png'
+        self._keymap = '<Super>P'
         self.read_settings()
         self.check_autostart()
-        self.ind = appindicator.Indicator.new("fileshare-services-client",
-                                          "indicator-fileshare",
+        self.ind = appindicator.Indicator.new('fileshare-services-client',
+                                          'indicator-fileshare',
                                           appindicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
         self.ind.set_icon(self.app_icon_panel)
@@ -145,18 +145,18 @@ class IndicatorFileshare(threading.Thread):
         try:
             self.config.read(CONFIG_FILE)
         except Exception as ex:
-            log.error("Error: {}".format(ex))
+            log.error('Error: {}'.format(ex))
         else:
             try:
-                self.SERVICE_NAME = config.get("SERVICE", "name")
+                self.SERVICE_NAME = config.get('SERVICE', 'name')
             except Exception as ex:
-                log.error("Error: {}".format(ex))
+                log.error('Error: {}'.format(ex))
                 self.SERVICE_NAME = DEFAULT_SERVICE_NAME
             try:
-                self._keymap = config.get("KEYMAP", "grabscreen")
+                self._keymap = config.get('KEYMAP', 'grabscreen')
             except Exception as ex:
-                log.error("Error: {}".format(ex))
-                self._keymap = "<Super>P"
+                log.error('Error: {}'.format(ex))
+                self._keymap = '<Super>P'
         self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
     #def read_settings(self)
 
@@ -165,19 +165,19 @@ class IndicatorFileshare(threading.Thread):
         # Save keymap
         config = ConfigParser.RawConfigParser()
         try:
-            if not config.has_section("KEYMAP"):
-                config.add_section("KEYMAP")
-            config.set("KEYMAP", "grabscreen", self._keymap)
+            if not config.has_section('KEYMAP'):
+                config.add_section('KEYMAP')
+            config.set('KEYMAP', 'grabscreen', self._keymap)
             with open(CONFIG_FILE, 'a') as configfile:
                 os.chmod(CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
         except Exception as ex:
-            log.error("Error: {}".format(ex))
+            log.error('Error: {}'.format(ex))
 
 
     def check_autostart(self):
-        autostart_dir = os.path.join(os.path.expanduser("~"), ".config/autostart/")
-        autostart_file = "indicator-fileshare.desktop"
+        autostart_dir = os.path.join(os.path.expanduser('~'), '.config/autostart/')
+        autostart_file = 'indicator-fileshare.desktop'
         autostart_path = os.path.join(autostart_dir, autostart_file)
         if not os.path.isfile(autostart_path):
             # Look for desktop file
@@ -191,7 +191,7 @@ class IndicatorFileshare(threading.Thread):
                 if not os.path.exists(autostart_dir):
                     os.mkdir(autostart_dir)
                 if os.path.isdir(autostart_dir):
-                    log.debug("Installing autostart file.")
+                    log.debug('Installing autostart file.')
                     os.symlink(desktop_file_path, autostart_path)
             #if desktop_file_path
         #if not os.path.isfile(autostart_path)
@@ -204,20 +204,20 @@ class IndicatorFileshare(threading.Thread):
         self.menu = Gtk.Menu()
         # Create menu items
         ##Grab screen area
-        screen_area_grab = Gtk.MenuItem("Select screen area to grab...")
+        screen_area_grab = Gtk.MenuItem('Select screen area to grab...')
         self.menu.append(screen_area_grab)
-        screen_area_grab.connect("activate", self.grab_screen_area)
+        screen_area_grab.connect('activate', self.grab_screen_area)
         screen_area_grab.show()
 
         ##Open current service site in the browser
-        self.open_site_url = open_site_url = Gtk.MenuItem("Open " + self.SERVICE_NAME)
+        self.open_site_url = open_site_url = Gtk.MenuItem('Open {}'.format(self.SERVICE_NAME))
         self.menu.append(open_site_url)
-        open_site_url.connect("activate", self.open_site)
+        open_site_url.connect('activate', self.open_site)
         open_site_url.show()
 
         ##Widget for grabbing files
-        grab_files = Gtk.MenuItem("Show/hide File Grabber")
-        grab_files.connect("activate", self.toggle_file_grabber)
+        grab_files = Gtk.MenuItem('Show/hide File Grabber')
+        grab_files.connect('activate', self.toggle_file_grabber)
         grab_files.show()
         self.menu.append(grab_files)
 
@@ -228,7 +228,7 @@ class IndicatorFileshare(threading.Thread):
 
         ##About
         about_show = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_ABOUT, None)
-        about_show.connect("activate", self.about)
+        about_show.connect('activate', self.about)
         about_show.show()
         self.menu.append(about_show)
 
@@ -239,26 +239,26 @@ class IndicatorFileshare(threading.Thread):
 
         ##Log in
         self.login_menu = Gtk.Menu()
-        self.imgur_login_menu = Gtk.MenuItem("...to Imgur")
-        self.imgur_login_menu.connect("activate", self.login, "Imgur")
+        self.imgur_login_menu = Gtk.MenuItem('...to {}'.format(Imgur.__name__))
+        self.imgur_login_menu.connect('activate', self.login, '{}'.format(Imgur.__name__))
         self.login_menu.append(self.imgur_login_menu)
-        self.droplr_login_menu = Gtk.MenuItem("...to Droplr")
-        self.droplr_login_menu.connect("activate", self.login, "Droplr")
+        self.droplr_login_menu = Gtk.MenuItem('...to {}'.format(Droplr.__name__))
+        self.droplr_login_menu.connect('activate', self.login, '{}'.format(Droplr.__name__))
         self.droplr_login_menu.set_sensitive(False)
         self.login_menu.append(self.droplr_login_menu)
         self.login_menu.show_all()
         if not self.service.is_logged_in():
-            self.auth = auth = Gtk.MenuItem("Log in...")
+            self.auth = auth = Gtk.MenuItem('Log in...')
             self.auth.set_submenu(self.login_menu)
         else:
-            if not self.service.get_username():
-                self.service.refresh_access_token()  # is done to get username
-            string = "Log out ({}".format(self.SERVICE_NAME)
+            if self.service.refresh_needed():
+                self.service.refresh_access()  # is done to get username
+            string = 'Log out ({}'.format(self.SERVICE_NAME)
             if self.service.get_username():
-                string = "{}, {}".format(string, self.service.get_username())
-            string = "{})".format(string)
+                string = '{}, {}'.format(string, self.service.get_username())
+            string = '{})'.format(string)
             self.auth = auth = Gtk.MenuItem(string)
-            self.auth_id = auth.connect("activate", self.logout)
+            self.auth_id = auth.connect('activate', self.logout)
         auth.show_all()
         self.menu.append(auth)
 
@@ -269,7 +269,7 @@ class IndicatorFileshare(threading.Thread):
 
         ##Quit
         quit = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_QUIT, None)
-        quit.connect("activate", self.quit)
+        quit.connect('activate', self.quit)
         quit.show()
         self.menu.append(quit)
         self.ind.set_menu(self.menu)
@@ -278,23 +278,23 @@ class IndicatorFileshare(threading.Thread):
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
         self.service = globals()[self.SERVICE_NAME](self, None, CONFIG_FILE, log)
-        self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
+        self.open_site_url.set_label('Open {}'.format(self.SERVICE_NAME))
 
     def login(self, widget, *data):
         self.config.read(CONFIG_FILE)
         self.SERVICE_NAME = data[0]
-        self.open_site_url.set_label("Open {}".format(self.SERVICE_NAME))
+        self.open_site_url.set_label('Open {}'.format(self.SERVICE_NAME))
         self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
         self.service.login()
         if self.service.is_logged_in():
-            log.debug("Logged in")
-            string = "Log out ({}".format(self.SERVICE_NAME)
+            log.debug('Logged in')
+            string = 'Log out ({}'.format(self.SERVICE_NAME)
             if self.service.get_username():
-                string = "{}, {}".format(string, self.service.get_username())
-            string = "{})".format(string)
+                string = '{}, {}'.format(string, self.service.get_username())
+            string = '{})'.format(string)
             self.auth.set_label(string)
             self.auth.set_submenu(None)
-            self.auth_id = self.auth.connect("activate", self.logout)
+            self.auth_id = self.auth.connect('activate', self.logout)
             self.save_settings()
         else:
             self.set_default_service()
@@ -303,10 +303,10 @@ class IndicatorFileshare(threading.Thread):
 
     def logout(self, widget):
         self.service.logout()
-        log.debug("Logged out")
+        log.debug('Logged out')
         self.save_settings()
         self.set_default_service()
-        self.auth.set_label("Log in...")
+        self.auth.set_label('Log in...')
         self.auth.disconnect(self.auth_id)
         self.auth.set_submenu(self.login_menu)
         self.save_settings()
@@ -325,30 +325,30 @@ class IndicatorFileshare(threading.Thread):
 
     ##########################################################################
     def about(self, widget):
-        log.debug("Indicator: open About dialog")
+        log.debug('Indicator: open About dialog')
         self.about_dialog = Gtk.AboutDialog()
-        self.about_dialog.set_name("Fileshare Indicator")
+        self.about_dialog.set_name('Fileshare Indicator')
         self.about_dialog.set_version(VERSION)
 
-        ifile = open("/usr/share/doc/indicator-fileshare/AUTHORS", "r")
+        ifile = open('/usr/share/doc/indicator-fileshare/AUTHORS', 'r')
         self.about_dialog.set_copyright(ifile.read().replace('\x0c', ''))
         ifile.close()
 
-        self.about_dialog.set_website("http://aikikode.github.com/fileshare/")
+        self.about_dialog.set_website('http://aikikode.github.com/fileshare/')
         self.about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file(self.app_icon))
-        self.about_dialog.connect("response", self.about_close)
+        self.about_dialog.connect('response', self.about_close)
         self.about_dialog.show()
     #def about(self, widget)
 
     def about_close(self, widget, event=None):
-        log.debug("Indicator: closing About dialog")
+        log.debug('Indicator: closing About dialog')
         self.about_dialog.destroy()
 
     ##########################################################################
     # Quit the applet
     def quit(self, widget, data=None):
         self.save_settings()
-        log.debug("Indicator: Quitting")
+        log.debug('Indicator: Quitting')
         Gtk.main_quit()
 #class IndicatorFileshare(threading.Thread)
 
@@ -359,36 +359,36 @@ def main():
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Enable and configure logs
     global log
     cachedir = os.environ.get('XDG_CACHE_HOME', '').strip()
     if not cachedir:
-        cachedir = os.path.expanduser("~/.cache")
+        cachedir = os.path.expanduser('~/.cache')
     try:
         os.mkdir(cachedir)
     except OSError as e:
         if not (e.errno == errno.EEXIST and os.path.isdir(cachedir)):
-            sys.exit("Unable to create cache directory")
-    log_filename = os.path.join(cachedir, "indicator-fileshare.log")
+            sys.exit('Unable to create cache directory')
+    log_filename = os.path.join(cachedir, 'indicator-fileshare.log')
     log = logging.getLogger('IndicatorFileshare')
     log.propagate = False
     log.setLevel(logging.DEBUG)
     log_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=1024 * 1024, backupCount=5)
-    log_formatter = logging.Formatter("[%(threadName)s] %(asctime)s - %(levelname)s - %(message)s")
+    log_formatter = logging.Formatter('[%(threadName)s] %(asctime)s - %(levelname)s - %(message)s')
     log_handler.setFormatter(log_formatter)
     log.addHandler(log_handler)
 
-    log.info("------------------------------")
-    log.info("Started Fileshare Indicator")
-    log.info("Fileshare Indicator version {}".format(VERSION))
+    log.info('------------------------------')
+    log.info('Started Fileshare Indicator')
+    log.info('Fileshare Indicator version {}'.format(VERSION))
 
     # Single instance stuff for fileshare indicator
-    myapp = SingleInstance(tempfile.gettempdir() + "/indicator-fileshare-{}.pid".format(getpass.getuser()))
+    myapp = SingleInstance(os.path.join(tempfile.gettempdir(), 'indicator-fileshare-{}.pid'.format(getpass.getuser())))
     # Check is another instance of same program running
     if myapp.is_already_running():
-        log.info("Another instance of this program is already running")
-        sys.exit("Another instance of this program is already running")
+        log.info('Another instance of this program is already running')
+        sys.exit('Another instance of this program is already running')
 
     di = IndicatorFileshare()
     main()
