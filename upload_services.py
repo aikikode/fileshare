@@ -23,33 +23,30 @@
 # License version 3 and version 2.1 along with this program.  If not, see
 # <http://www.gnu.org/licenses>
 #
-import ConfigParser
-#import pynotify
-from gi.repository import Notify
-import stat
 
 __author__ = 'aikikode'
 
-#import gtk
+
 from gi.repository import Gtk
 from gi.repository import Gdk
-# for delayed actions
 from gi.repository import GObject
-import webbrowser
-import os
-import threading
-# for uploading
-import base64
-# for parsing server response
-import json
+from gi.repository import Notify
+
+import ConfigParser
+
 from abc import ABCMeta, abstractmethod
-# For Droplr hashed requests
+import base64
 import hashlib
 import hmac
+import json
+import mimetypes
+import os
+import stat
+import threading
 import time
 import urllib
 import urllib2
-import mimetypes
+import webbrowser
 
 
 class UploadBase(threading.Thread):
@@ -90,9 +87,17 @@ class UploadBase(threading.Thread):
     def save_settings(self):
         pass
 
+    @abstractmethod
+    def refresh_needed(self):
+        pass
+
+    @abstractmethod
+    def refresh_access(self):
+        pass
+
     def show_notification(self, message):
-        Notify.init("Fileshare")
-        notify = Notify.Notification.new("Fileshare", message, self.app.app_icon)
+        Notify.init('Fileshare')
+        notify = Notify.Notification.new('Fileshare', message, self.app.app_icon)
         notify.show()
 
     def show_result(self, url):
@@ -112,19 +117,19 @@ class Imgur(UploadBase):
     def __init__(self, app, config, config_file, log):
         UploadBase.__init__(self, app)
         # API v3
-        self._client_id = "813588ae4b2b41a"
-        self._client_secret = "1cc11d1006c90d0e184daa29085a015e24cd6705"
+        self._client_id = '813588ae4b2b41a'
+        self._client_secret = '1cc11d1006c90d0e184daa29085a015e24cd6705'
         self.log = log
         self.config_file = config_file
         self._url = 'https://imgur.com/'
         try:
-            self._access_token = config.get("IMGUR", "access_token")
-            self._refresh_token = config.get("IMGUR", "refresh_token")
-            self._username = config.get("IMGUR", "username")
+            self._access_token = config.get('IMGUR', 'access_token')
+            self._refresh_token = config.get('IMGUR', 'refresh_token')
+            self._username = config.get('IMGUR', 'username')
         except Exception:
-            self._access_token = ""
-            self._refresh_token = ""
-            self._username = ""
+            self._access_token = ''
+            self._refresh_token = ''
+            self._username = ''
 
     def login(self):
         def auth_response(dialog, resp_id):
@@ -139,16 +144,17 @@ class Imgur(UploadBase):
                 for line in urllib2.urlopen(req):
                     self.response = line
                 resp = json.loads(self.response)
-                if "access_token" in resp:
-                    self._access_token = str(resp["access_token"])
-                    self._refresh_token = str(resp["refresh_token"])
+                if 'access_token' in resp:
+                    self._access_token = str(resp['access_token'])
+                    self._refresh_token = str(resp['refresh_token'])
                     self.refresh_access_token()  # is done to get username
-                    self.show_notification("Successfully logged in to Imgur")
+                    self.show_notification('Successfully logged in to Imgur')
         # Open browser windows and prompt for access to Imgur account
         webbrowser.open(
-            "https://api.imgur.com/oauth2/authorize?client_id=" + self._client_id + "&response_type=pin&state=APPLICATION_STATE")
+            'https://api.imgur.com/oauth2/authorize?client_id={}&response_type=pin&state=APPLICATION_STATE'.format(self._client_id)
+        )
         # Window to enter PIN from the site
-        pin_dialog = Gtk.Dialog(title="Fileshare Imgur Login",
+        pin_dialog = Gtk.Dialog(title='Fileshare Imgur Login',
                                 flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
                                 buttons=(
                                     Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
@@ -182,19 +188,19 @@ class Imgur(UploadBase):
     def save_settings(self):
         config = ConfigParser.RawConfigParser()
         try:
-            if not config.has_section("IMGUR"):
-                config.add_section("IMGUR")
-            config.set("IMGUR", "access_token", self._access_token)
-            config.set("IMGUR", "refresh_token", self._refresh_token)
-            config.set("IMGUR", "username", self._username)
-            if not config.has_section("SERVICE"):
-                config.add_section("SERVICE")
-            config.set("SERVICE", "name", "Imgur")
+            if not config.has_section('IMGUR'):
+                config.add_section('IMGUR')
+            config.set('IMGUR', 'access_token', self._access_token)
+            config.set('IMGUR', 'refresh_token', self._refresh_token)
+            config.set('IMGUR', 'username', self._username)
+            if not config.has_section('SERVICE'):
+                config.add_section('SERVICE')
+            config.set('SERVICE', 'name', 'Imgur')
             with open(self.config_file, 'w+') as configfile:
                 os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error('Error: {}'.format(ex))
 
     def refresh_access_token(self):
         if self._refresh_token:
@@ -205,7 +211,7 @@ class Imgur(UploadBase):
             req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
             for line in urllib2.urlopen(req):
                 self.response = line
-            self.log.debug("Response: " + self.response)
+            self.log.debug('Response: {}'.format(self.response))
             resp = json.loads(self.response)
             if 'access_token' in resp:
                 self._access_token = str(resp['access_token'])
@@ -221,10 +227,10 @@ class Imgur(UploadBase):
                                            type=Gtk.MESSAGE_WARNING,
                                            buttons=Gtk.BUTTONS_OK,
                                            message_format=None)
-                dialog.set_title("fileshare")
-                dialog.set_markup("Authentication failed!")
+                dialog.set_title('fileshare')
+                dialog.set_markup('Authentication failed!')
                 dialog.format_secondary_text(
-                    "Please, log in again. Otherwise your images will be uploaded anonymously.")
+                    'Please, log in again. Otherwise your images will be uploaded anonymously.')
                 dialog.run()
                 dialog.destroy()
         return False
@@ -234,29 +240,29 @@ class Imgur(UploadBase):
             image = self.prepare_image(image)
 
         def img2base64(image):
-            with open(image, "rb") as image_file:
+            with open(image, 'rb') as image_file:
                 encoded_string = base64.b64encode(image_file.read())
             return encoded_string
 
-        self.log.debug("Uploading file: " + image)
+        self.log.debug('Uploading file: {}'.format(image))
         self.response = ''
         self.base64String = img2base64(image)
         if self._access_token:
-            header = {'Authorization': 'Bearer ' + self._access_token}
+            header = {'Authorization': 'Bearer {}'.format(self._access_token)}
         else:
             # Anonymous upload
-            header = {'Authorization': 'Client-ID ' + self._client_id}
+            header = {'Authorization': 'Client-ID {}'.format(self._client_id)}
         body = dict(image=self.base64String)
         req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(body), header)
         try:
             for line in urllib2.urlopen(req):
                 self.response = line
-            self.log.debug("Response: " + self.response)
+            self.log.debug('Response: {}'.format(self.response))
             if self._access_token and json.loads(self.response)['status'] == 403:
                 raise Exception('Auth token expired')
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
-            if str(e).startswith("HTTP Error 400"):
+        except Exception as ex:
+            self.log.error('Error: {}'.format(ex))
+            if str(ex).startswith('HTTP Error 400'):
                 self.show_notification("Sorry, but Fileshare couldn't upload the file of this type.")
             else:
                 if self._access_token and self.refresh_access_token():
@@ -265,48 +271,54 @@ class Imgur(UploadBase):
             resp_dict = json.loads(self.response)
             url = resp_dict['data']['link']
             self.show_result(url)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error('Error: {}'.format(ex))
         if remove:
             try:
                 os.remove(image)
-            except OSError, e:
-                self.log.debug("Error: %s - %s" % (e.filename, e.strerror))
+            except OSError as ex:
+                self.log.debug('Error: {} - {}'.format(ex.filename, ex.strerror))
         return False  # return False not to be called again as callback
 
     def logout(self):
-        self._access_token = ""
-        self._refresh_token = ""
-        self._username = ""
+        self._access_token = ''
+        self._refresh_token = ''
+        self._username = ''
+
+    def refresh_needed(self):
+        return not self.get_username()
+
+    def refresh_access(self):
+        self.refresh_access_token()
 #class Imgur()
 
 
 class Droplr(UploadBase):
     def __init__(self, app, config, config_file, log):
         UploadBase.__init__(self, app)
-        self._public_key = ""
-        self._private_key = ""
+        self._public_key = ''
+        self._private_key = ''
         self.log = log
         self.config_file = config_file
         self._url = 'https://droplr.com/'
         self.api_url = ''
         try:
-            self._login = config.get("DROPLR", "email")
-            self._password_sha1 = config.get("DROPLR", "password")
-            self._authorization_header = base64.b64encode(self._public_key + ":" + self._login)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
-            self._login = ""
-            self._password_sha1 = ""
-            self._authorization_header = ""
+            self._login = config.get('DROPLR', 'email')
+            self._password_sha1 = config.get('DROPLR', 'password')
+            self._authorization_header = base64.b64encode('{}:{}'.format(self._public_key, self._login))
+        except Exception as ex:
+            self.log.error('Error: {}'.format(ex))
+            self._login = ''
+            self._password_sha1 = ''
+            self._authorization_header = ''
         if self.is_logged_in() and not self.are_credentials_ok():
             self.relogin()
 
     def relogin(self):
-        self._login = ""
-        self._password_sha1 = ""
-        self.show_notification("Invalid login/password. Please try again")
-        self.log.debug("Invalid login/password, trying again")
+        self._login = ''
+        self._password_sha1 = ''
+        self.show_notification('Invalid login/password. Please try again')
+        self.log.debug('Invalid login/password, trying again')
         GObject.idle_add(self.login)
 
     def login(self):
@@ -318,14 +330,14 @@ class Droplr(UploadBase):
                 self._login = email
                 self._password_sha1 = hashlib.sha1(password).hexdigest()
                 del password
-                self._authorization_header = base64.b64encode(self._public_key + ":" + self._login)
+                self._authorization_header = base64.b64encode('{}:{}'.format(self._public_key, self._login))
                 if not self.are_credentials_ok():
                     self.relogin()
         # Window to enter email and password
-        pin_dialog = Gtk.Dialog(title="Droplr Login",
+        pin_dialog = Gtk.Dialog(title='Droplr Login',
                                 flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
                                 buttons=(
-                                    "Sign Up", Gtk.ResponseType.OK,
+                                    'Sign Up', Gtk.ResponseType.OK,
                                     Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL))
         pin_dialog.set_default_response(Gtk.ResponseType.OK)
         pin_dialog.set_modal(False)
@@ -339,16 +351,16 @@ class Droplr(UploadBase):
         pin_dialog.password_entry = password_entry = Gtk.Entry()
         password_entry.set_activates_default(Gtk.TRUE)
 
-        email_label = Gtk.Label("e-mail :")
-        password_label = Gtk.Label("password :")
+        email_label = Gtk.Label('e-mail :')
+        password_label = Gtk.Label('password :')
         password_entry.set_visibility(False)
         pin_dialog.password_entry.show()
 
         def forgot_password_callback(self, widget, data=None):
             webbrowser.open('https://www.dropbox.com/forgot')
 
-        forgot_password_button = Gtk.Button("Forgot password?")
-        forgot_password_button.connect("clicked", forgot_password_callback, None)
+        forgot_password_button = Gtk.Button('Forgot password?')
+        forgot_password_button.connect('clicked', forgot_password_callback, None)
         forgot_password_button.props.relief = Gtk.RELIEF_NONE
         label = forgot_password_button.get_children()[0]
         label.modify_fg(Gtk.STATE_NORMAL, Gdk.color_parse('red'))
@@ -381,47 +393,47 @@ class Droplr(UploadBase):
     def save_settings(self):
         config = ConfigParser.RawConfigParser()
         try:
-            if not config.has_section("DROPLR"):
-                config.add_section("DROPLR")
-            config.set("DROPLR", "email", self._login)
-            config.set("DROPLR", "password", self._password_sha1)
-            if not config.has_section("SERVICE"):
-                config.add_section("SERVICE")
-            config.set("SERVICE", "name", "Droplr")
+            if not config.has_section('DROPLR'):
+                config.add_section('DROPLR')
+            config.set('DROPLR', 'email', self._login)
+            config.set('DROPLR', 'password', self._password_sha1)
+            if not config.has_section('SERVICE'):
+                config.add_section('SERVICE')
+            config.set('SERVICE', 'name', 'Droplr')
             with open(self.config_file, 'w+') as configfile:
                 os.chmod(self.config_file, stat.S_IRUSR | stat.S_IWUSR)
                 config.write(configfile)
-        except Exception as e:
-            self.log.error("Error: %s" % str(e))
+        except Exception as ex:
+            self.log.error('Error: {}'.format(ex))
 
         return config
 
     def create_signature(self, string_to_sign):
         return base64.b64encode(
-            hmac.new(self._private_key + ":" + self._password_sha1, string_to_sign, hashlib.sha1).digest())
+            hmac.new('{}:{}'.format(self._private_key, self._password_sha1), string_to_sign, hashlib.sha1).digest())
 
     def perform_request(self, method, uri, date, content_type, data, params):
         self.response = ''
-        string_to_sign = "%s /%s.json HTTP/1.1\n%s\n%s" % (method, uri, content_type, date)
+        string_to_sign = "{} /{}.json HTTP/1.1\n{}\n{}".format(method, uri, content_type, date)
         signature = self.create_signature(string_to_sign)
 
-        url = '%s/%s.json' % (self.api_url, uri)
+        url = '{}/{}.json'.format(self.api_url, uri)
         if params:
-            url += "?" + urllib.urlencode(params)
+            url += '?{}'.format(urllib.urlencode(params))
         headers = {}
-        headers["Authorization"] = "droplr %s:%s" % (self._authorization_header, signature)
-        headers["Date"] = date
+        headers['Authorization'] = 'droplr {}:{}'.format(self._authorization_header, signature)
+        headers['Date'] = date
         if data:
-            headers["Content-Length"] = len(data)
+            headers['Content-Length'] = len(data)
         if content_type:
-            headers["Content-Type"] = content_type
+            headers['Content-Type'] = content_type
 
         req = urllib2.Request(url, headers=headers)
         if data:
             req.add_data(urllib.urlencode(data))
         for line in urllib2.urlopen(req):
             self.response = line
-        self.log.debug("Response: " + self.response)
+        self.log.debug('Response: {}'.format(self.response))
         return Droplr.DroplrResponse(self.response)
 
     def are_credentials_ok(self):
@@ -436,11 +448,11 @@ class Droplr(UploadBase):
             image = self.prepare_image(image)
 
         def get_data(image):
-            with open(image, "rb") as image_file:
+            with open(image, 'rb') as image_file:
                 data = image_file.read()
             return data
 
-        self.log.debug("Uploading file: " + image)
+        self.log.debug('Uploading file: {}'.format(image))
         data = get_data(image)
         params = {'filename': os.path.basename(image)}
         content_type = mimetypes.guess_type(image)[0]
@@ -448,21 +460,27 @@ class Droplr(UploadBase):
             content_type = 'application/octet-stream'
 
         date = str(int(time.time()))
-        response = self.perform_request("POST", 'files', date, content_type, data, params)
+        response = self.perform_request('POST', 'files', date, content_type, data, params)
         if not response.is_error():
             dict = response.get_data()
             try:
                 url = dict['shortlink']
                 self.show_result(url)
-            except Exception as e:
-                self.log.error("Error: %s" % str(e))
+            except Exception as ex:
+                self.log.error('Error: {}'.format(ex))
         if remove:
             os.remove(image)
         return False  # return False not to be called again as callback
 
     def logout(self):
-        self._login = ""
-        self._password_sha1 = ""
+        self._login = ''
+        self._password_sha1 = ''
+
+    def refresh_needed(self):
+        return not self.are_credentials_ok()
+
+    def refresh_access(self):
+        self.relogin()
 
     class DroplrResponse:
         def __init__(self, response):
