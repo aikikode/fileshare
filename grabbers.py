@@ -136,6 +136,7 @@ class ScreenGrabber(threading.Thread):
                                  Gdk.EventMask.KEY_PRESS_MASK)
         drawingWindow.show()
         drawingWindow.present()
+        drawingWindow.get_window().set_fullscreen_mode(Gdk.FullscreenMode.ALL_MONITORS)
         cursor = Gdk.Cursor(Gdk.CursorType.CROSSHAIR)
         drawingWindow.get_window().set_cursor(cursor)
         drawingWindow.connect('draw', self.initial_draw)
