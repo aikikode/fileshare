@@ -58,7 +58,7 @@ DEFAULT_SERVICE_NAME = Imgur.__name__  # Choose Imgur because it allows anonymou
 
 GObject.threads_init()
 
-VERSION = '0.5.4.1'
+VERSION = '0.5.5'
 
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')

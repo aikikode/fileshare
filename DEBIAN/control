@@ -6,4 +6,4 @@ Architecture: all
 Description: Imgur and Droplr applet indicator
 Depends: gnome-icon-theme, libgtk-3-bin, python-gconf
 Homepage: http://aikikode.github.com/fileshare/
-Version: 0.5.4.1
+Version: 0.5.5
