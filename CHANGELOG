@@ -1,4 +1,6 @@
 v0.5.4.1
+  New Features:
+  - Add multiple monitors support
   Fixes:
   - Logging uses format
 
