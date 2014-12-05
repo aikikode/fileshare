@@ -1,82 +1,88 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset='utf-8'>
-    <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
-    <!--[if lt IE 9]>
-    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <title>Fileshare by aikikode</title>
-  </head>
+<head>
+  <meta charset='utf-8'>
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+  <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+  <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+  <!--[if lt IE 9]>
+  <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <title>Fileshare by aikikode</title>
+</head>
 
-  <body>
-    <div id="container">
-      <div class="inner">
+<body>
+<div id="container">
+  <div class="inner">
 
-        <header>
-          <h1>Fileshare</h1>
-          <h2>Applet for file sharing using popular online services</h2>
-        </header>
+    <header>
+      <h1>Fileshare</h1>
+      <h2>Applet for file sharing using popular online services</h2>
+    </header>
 
-        <section id="downloads" class="clearfix">
-          <a href="https://github.com/aikikode/fileshare/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
-          <!--<a href="https://github.com/aikikode/fileshare/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>-->
-          <a href="https://github.com/aikikode/fileshare" id="view-on-github" class="button"><span>View on GitHub</span></a>
-        </section>
+    <section id="downloads" class="clearfix">
+      <a href="https://github.com/aikikode/fileshare/releases" id="download-deb" class="button"><span>Download deb</span></a>
+      <a href="https://github.com/aikikode/fileshare/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+      <a href="https://github.com/aikikode/fileshare" id="view-on-github" class="button"><span>View on GitHub</span></a>
+    </section>
 
-        <hr>
+    <hr>
 
-        <section id="main_content">
-          <h1>Fileshare Applet</h1>
+    <section id="main_content">
+      <h1>Fileshare Applet</h1>
 
-<p>Fileshare applet development is inspired mostly by Droplr windows client. Its
-purpose is to share images over the Internet using on-line services.
-By now only Imgur (<a href="http://imgur.com">http://imgur.com</a>) is supported. Droplr support will be added
-when they provide API.</p>
+      <p>Fileshare applet development is inspired mostly by Droplr windows client. Its
+        purpose is to share images over the Internet using on-line services.
+        By now only Imgur (<a href="http://imgur.com">http://imgur.com</a>) is supported. Droplr support will be added
+        when they provide API.</p>
+      <iframe width="560" height="315" src="//www.youtube.com/embed/Hm1oSxShmxQ" frameborder="0" allowfullscreen></iframe>
+      <h2>Fileshare applet features</h2>
+      <ul>
+        <li>select screen area to grab, show preview and upload</li>
+        <li>link to the result image is automatically stored in the buffer, just paste
+          to share the link</li>
+        <li>drag'n'drop image files to 'File Grabber' to upload</li>
+        <li>Imgur account support: run 'Log in' menu item to connect application
+          to your Imgur account</li>
+      </ul>
+      <h2>For Linux users</h2>
+      <h3>Ubuntu and Debian users</h3>
+      Download and install latest deb package from <a href="https://github.com/aikikode/fileshare/releases">releases</a> page
+      <h3>Other Linux</h3>
+      <ul>
+        <li>Download sources from the link above</li>
+        <li>Run</br>
+          ./build_deb.sh</br>
+          this will create deb package</li>
+        <li>Install it with command:</br>
+          # dpkg -i deb_file</p>
+      </ul>
+      <h2>For Windows users</h2>
+      <ul>
+        <li>Download and run PyGTK all-in-one installer:</br>
+          <a href="http://www.pygtk.org/downloads.html">http://www.pygtk.org/downloads.html</a></li>
+        <li>Run fileshare-setup.exe</li>
+      </ul>
 
-<p>Fileshare applet features:</p>
 
-<ul>
-<li>drag'n'drop image files to 'File Grabber' to upload</li>
-<li>select screen area to grab, show preview and upload</li>
-<li>link to the result image is automatically stored in the buffer, just paste
-to share the link</li>
-<li>Imgur account support: run 'Log in' menu item to connect application
-to your Imgur account</li>
+      <h2>Special thanks to</h2>
+      <ul>
+        <li>Droplr developers for idea</li>
+        <li>Weather Indicator Team for first steps in Unity Python toolbar application
+          development</li>
+        <li>VladX, Nanoshot developer for many great PyGTK examples</li>
+      </ul>
+    </section>
 
-</ul><p>For Windows users:</br>
-<li>Download and run PyGTK all-in-one installer:</br>
-http://www.pygtk.org/downloads.html</li>
-<li>Run fileshare-setup.exe</li></p>
+    <footer>
+      Fileshare is maintained by <a href="https://github.com/aikikode">aikikode</a><br>
+      This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="http://twitter.com/jasonlong">Jason Long</a>.
+    </footer>
 
-<p>For Linux users:</br>
-<li>Run</br>
-./build_deb.sh</br>
-this will create deb package</li>
-<li>Install it with command:</br>
-# dpkg -i <deb file></p>
 
-<p>Special thanks to:</p>
-
-<ul>
-<li>Droplr developers for idea</li>
-<li>Weather Indicator Team for first steps in Unity Python toolbar application
-development</li>
-<li>VladX, Nanoshot developer for many great PyGTK examples</li>
-</ul>
-        </section>
-
-        <footer>
-          Fileshare is maintained by <a href="https://github.com/aikikode">aikikode</a><br>
-          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="http://twitter.com/jasonlong">Jason Long</a>.
-        </footer>
-
-        
-      </div>
-    </div>
-  </body>
+  </div>
+</div>
+</body>
 </html>
