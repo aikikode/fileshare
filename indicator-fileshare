@@ -58,7 +58,7 @@ DEFAULT_SERVICE_NAME = Imgur.__name__  # Choose Imgur because it allows anonymou
 
 GObject.threads_init()
 
-VERSION = '0.5.5'
+VERSION = '0.5.5.1'
 
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')
@@ -120,9 +120,11 @@ class IndicatorFileshare(threading.Thread):
         self._keymap = '<Super>P'
         self.read_settings()
         self.check_autostart()
-        self.ind = appindicator.Indicator.new('fileshare-services-client',
-                                          'indicator-fileshare',
-                                          appindicator.IndicatorCategory.APPLICATION_STATUS)
+        self.ind = appindicator.Indicator.new(
+            'fileshare-services-client',
+            'indicator-fileshare',
+            appindicator.IndicatorCategory.APPLICATION_STATUS
+        )
         self.ind.set_status(appindicator.IndicatorStatus.ACTIVE)
         self.ind.set_icon(self.app_icon_panel)
         file_grabber_icon = self.app_icon
@@ -158,7 +160,6 @@ class IndicatorFileshare(threading.Thread):
                 log.error('Error: {}'.format(ex))
                 self._keymap = '<Super>P'
         self.service = globals()[self.SERVICE_NAME](self, self.config, CONFIG_FILE, log)
-    #def read_settings(self)
 
     def save_settings(self):
         self.service.save_settings()
@@ -173,7 +174,6 @@ class IndicatorFileshare(threading.Thread):
                 config.write(configfile)
         except Exception as ex:
             log.error('Error: {}'.format(ex))
-
 
     def check_autostart(self):
         autostart_dir = os.path.join(os.path.expanduser('~'), '.config/autostart/')
@@ -193,9 +193,6 @@ class IndicatorFileshare(threading.Thread):
                 if os.path.isdir(autostart_dir):
                     log.debug('Installing autostart file.')
                     os.symlink(desktop_file_path, autostart_path)
-            #if desktop_file_path
-        #if not os.path.isfile(autostart_path)
-    #def check_autostart(self)
 
     def get_version(self):
         return VERSION
@@ -203,41 +200,41 @@ class IndicatorFileshare(threading.Thread):
     def create_menu(self):
         self.menu = Gtk.Menu()
         # Create menu items
-        ##Grab screen area
+        #  Grab screen area
         screen_area_grab = Gtk.MenuItem('Select screen area to grab...')
         self.menu.append(screen_area_grab)
         screen_area_grab.connect('activate', self.grab_screen_area)
         screen_area_grab.show()
 
-        ##Open current service site in the browser
+        #  Open current service site in the browser
         self.open_site_url = open_site_url = Gtk.MenuItem('Open {}'.format(self.SERVICE_NAME))
         self.menu.append(open_site_url)
         open_site_url.connect('activate', self.open_site)
         open_site_url.show()
 
-        ##Widget for grabbing files
+        #  Widget for grabbing files
         grab_files = Gtk.MenuItem('Show/hide File Grabber')
         grab_files.connect('activate', self.toggle_file_grabber)
         grab_files.show()
         self.menu.append(grab_files)
 
-        ##Breaker
+        #  Breaker
         breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
-        ##About
+        #  About
         about_show = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_ABOUT, None)
         about_show.connect('activate', self.about)
         about_show.show()
         self.menu.append(about_show)
 
-        ##Breaker
+        #  Breaker
         breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
-        ##Log in
+        #  Log in
         self.login_menu = Gtk.Menu()
         self.imgur_login_menu = Gtk.MenuItem('...to {}'.format(Imgur.__name__))
         self.imgur_login_menu.connect('activate', self.login, '{}'.format(Imgur.__name__))
@@ -262,18 +259,18 @@ class IndicatorFileshare(threading.Thread):
         auth.show_all()
         self.menu.append(auth)
 
-        ##Breaker
+        #  Breaker
         breaker = Gtk.SeparatorMenuItem()
         breaker.show()
         self.menu.append(breaker)
 
-        ##Quit
+        #  Quit
         quit = Gtk.ImageMenuItem.new_from_stock(Gtk.STOCK_QUIT, None)
         quit.connect('activate', self.quit)
         quit.show()
         self.menu.append(quit)
         self.ind.set_menu(self.menu)
-    #def create_menu(self)
+    # def create_menu(self)
 
     def set_default_service(self):
         self.SERVICE_NAME = DEFAULT_SERVICE_NAME
@@ -346,7 +343,7 @@ class IndicatorFileshare(threading.Thread):
 
     ##########################################################################
     # Quit the applet
-    def quit(self, widget, data=None):
+    def quit(self, widget=None, data=None):
         self.save_settings()
         log.debug('Indicator: Quitting')
         Gtk.main_quit()

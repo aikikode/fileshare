@@ -56,7 +56,6 @@ class UploadBase(threading.Thread):
     def __init__(self, app):
         threading.Thread.__init__(self)
         self.app = app
-        #self.cb = Gtk.Clipboard()
         self.cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
 
     @abstractmethod
@@ -136,10 +135,12 @@ class Imgur(UploadBase):
             if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
-                body = dict(client_id=self._client_id,
-                            client_secret=self._client_secret,
-                            grant_type='pin',
-                            pin=pin)
+                body = dict(
+                    client_id=self._client_id,
+                    client_secret=self._client_secret,
+                    grant_type='pin',
+                    pin=pin
+                )
                 req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
                 for line in urllib2.urlopen(req):
                     self.response = line
@@ -151,20 +152,25 @@ class Imgur(UploadBase):
                     self.show_notification('Successfully logged in to Imgur')
         # Open browser windows and prompt for access to Imgur account
         webbrowser.open(
-            'https://api.imgur.com/oauth2/authorize?client_id={}&response_type=pin&state=APPLICATION_STATE'.format(self._client_id)
+            'https://api.imgur.com/oauth2/authorize?client_id={}&response_type=pin&state=APPLICATION_STATE'.format(
+                self._client_id
+            )
         )
         # Window to enter PIN from the site
-        pin_dialog = Gtk.Dialog(title='Fileshare Imgur Login',
-                                flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                                buttons=(
-                                    Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                                    Gtk.STOCK_OK, Gtk.ResponseType.OK))
+        pin_dialog = Gtk.Dialog(
+            title='Fileshare Imgur Login',
+            flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
+            buttons=(
+                Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                Gtk.STOCK_OK, Gtk.ResponseType.OK)
+        )
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)
         label = Gtk.Label(
             "The browser window should have been opened.\n"
             "Please, allow fileshare applet to use your Imgur account.\n"
-            "After that copy provided PIN from webpage and paste it here.")
+            "After that copy provided PIN from webpage and paste it here."
+        )
         pin_dialog.pin_entry = pin_entry = Gtk.Entry()
         pin_dialog.vbox.add(label)
         pin_dialog.vbox.add(pin_entry)
@@ -204,10 +210,12 @@ class Imgur(UploadBase):
 
     def refresh_access_token(self):
         if self._refresh_token:
-            body = dict(client_id=self._client_id,
-                        refresh_token=self._refresh_token,
-                        client_secret=self._client_secret,
-                        grant_type='refresh_token')
+            body = dict(
+                client_id=self._client_id,
+                refresh_token=self._refresh_token,
+                client_secret=self._client_secret,
+                grant_type='refresh_token'
+            )
             req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
             for line in urllib2.urlopen(req):
                 self.response = line
@@ -230,7 +238,8 @@ class Imgur(UploadBase):
                 dialog.set_title('fileshare')
                 dialog.set_markup('Authentication failed!')
                 dialog.format_secondary_text(
-                    'Please, log in again. Otherwise your images will be uploaded anonymously.')
+                    'Please, log in again. Otherwise your images will be uploaded anonymously.'
+                )
                 dialog.run()
                 dialog.destroy()
         return False
@@ -278,6 +287,17 @@ class Imgur(UploadBase):
                 os.remove(image)
             except OSError as ex:
                 self.log.debug('Error: {} - {}'.format(ex.filename, ex.strerror))
+
+        # TODO: remove after GTK3+ bug fixed
+        # Dirty hack! Due to a bug in GDK3+ all 2+ screenshots will be the same. Have to restart the application.
+        import sys
+        import tempfile
+        import getpass
+        temp_path = os.path.join(tempfile.gettempdir(), 'indicator-fileshare-{}.pid'.format(getpass.getuser()))
+        os.unlink(temp_path)
+        self.app.quit()
+        os.execl(sys.executable, sys.executable, *sys.argv)
+
         return False  # return False not to be called again as callback
 
     def logout(self):
@@ -334,11 +354,14 @@ class Droplr(UploadBase):
                 if not self.are_credentials_ok():
                     self.relogin()
         # Window to enter email and password
-        pin_dialog = Gtk.Dialog(title='Droplr Login',
-                                flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
-                                buttons=(
-                                    'Sign Up', Gtk.ResponseType.OK,
-                                    Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL))
+        pin_dialog = Gtk.Dialog(
+            title='Droplr Login',
+            flags=Gtk.DIALOG_DESTROY_WITH_PARENT,
+            buttons=(
+                'Sign Up', Gtk.ResponseType.OK,
+                Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL
+            )
+        )
         pin_dialog.set_default_response(Gtk.ResponseType.OK)
         pin_dialog.set_modal(False)
         pin_dialog.set_decorated(True)

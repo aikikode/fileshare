@@ -13,12 +13,9 @@ supported.
   (note, that to use Droplr account you'll need to request application keys from the developers,
   see [http://help.droplr.com/customer/portal/articles/1014091-introduction](http://help.droplr.com/customer/portal/articles/1014091-introduction) for more details)
 
-###For Windows users:  
-1. Download and run PyGTK all-in-one installer:  
-   [http://www.pygtk.org/downloads.html](http://www.pygtk.org/downloads.html)
-2. Run fileshare-setup.exe
-
 ###For Linux users:  
+Download latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.  
+or create a package yourself:  
 1. Run  
 ```bash
 ./build_deb.sh  
@@ -28,6 +25,11 @@ this will create deb package
 ```bash
 # dpkg -i <deb file>
 ```
+
+###For Windows users:  
+1. Download and run PyGTK all-in-one installer:  
+   [http://www.pygtk.org/downloads.html](http://www.pygtk.org/downloads.html)
+2. Run fileshare-setup.exe
 
 ###Custom keyboard shortcut  
 Please, note, that not all systems support hotkeys. To check whether your system supports them, open Python console and type:  

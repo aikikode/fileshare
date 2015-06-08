@@ -130,10 +130,12 @@ class ScreenGrabber(threading.Thread):
         if visual:
             drawingWindow.set_visual(visual)
         drawingWindow.set_app_paintable(True)
-        drawingWindow.set_events(Gdk.EventMask.POINTER_MOTION_MASK |
-                                 Gdk.EventMask.BUTTON_PRESS_MASK |
-                                 Gdk.EventMask.BUTTON_RELEASE_MASK |
-                                 Gdk.EventMask.KEY_PRESS_MASK)
+        drawingWindow.set_events(
+            Gdk.EventMask.POINTER_MOTION_MASK |
+            Gdk.EventMask.BUTTON_PRESS_MASK |
+            Gdk.EventMask.BUTTON_RELEASE_MASK |
+            Gdk.EventMask.KEY_PRESS_MASK
+        )
         drawingWindow.show()
         drawingWindow.present()
         drawingWindow.get_window().set_fullscreen_mode(Gdk.FullscreenMode.ALL_MONITORS)
@@ -184,11 +186,14 @@ class ScreenGrabber(threading.Thread):
             if resp_id == Gtk.ResponseType.OK:
                 self.upload_from_pixmap()
         image = self.gtk_screen_image
-        preview_dialog = Gtk.Dialog(title='Preview screenshot',
-                                    flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-                                    buttons=(
-                                        Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                                        'Upload', Gtk.ResponseType.OK))
+        preview_dialog = Gtk.Dialog(
+            title='Preview screenshot',
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+            buttons=(
+                Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                'Upload', Gtk.ResponseType.OK
+            )
+        )
         preview_dialog.set_default_response(Gtk.ResponseType.OK)
         preview_dialog.set_modal(True)
         preview_dialog.set_decorated(False)
