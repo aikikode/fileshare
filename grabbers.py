@@ -105,9 +105,10 @@ class FileGrabber():
 
 ##############################################################################
 class ScreenGrabber(threading.Thread):
-    def __init__(self, upload_callback, log):
+    def __init__(self, upload_callback, quit_callback, log):
         threading.Thread.__init__(self)
         self.upload_callback = upload_callback
+        self.quit_callback = quit_callback
         self.log = log
         self.log.debug('ScreenGrabber: creating')
         self.selected = False
@@ -185,6 +186,16 @@ class ScreenGrabber(threading.Thread):
         def response(dialog, resp_id):
             if resp_id == Gtk.ResponseType.OK:
                 self.upload_from_pixmap()
+            else:
+                # TODO: remove after GTK3+ bug fixed
+                # Dirty hack! Due to a bug in GDK3+ all 2+ screenshots will be the same. Have to restart the application.
+                import sys
+                import getpass
+                temp_path = os.path.join(tempfile.gettempdir(), 'indicator-fileshare-{}.pid'.format(getpass.getuser()))
+                os.unlink(temp_path)
+                self.quit_callback()
+                os.execl(sys.executable, sys.executable, *sys.argv)
+
         image = self.gtk_screen_image
         preview_dialog = Gtk.Dialog(
             title='Preview screenshot',

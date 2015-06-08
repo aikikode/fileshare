@@ -310,7 +310,7 @@ class IndicatorFileshare(threading.Thread):
         self.file_grabber.set_upload_callback(self.service.upload_callback)
 
     def grab_screen_area(self, widget):
-        ScreenGrabber(self.service.upload_callback, log)
+        ScreenGrabber(self.service.upload_callback, self.quit, log)
 
     ##########################################################################
     def open_site(self, widget):
