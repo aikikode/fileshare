@@ -278,8 +278,14 @@ class Imgur(UploadBase):
                     return self.upload_callback(image, remove, call_prepare=False)
         try:
             resp_dict = json.loads(self.response)
-            url = resp_dict['data']['link']
-            self.show_result(url)
+            url = resp_dict.get('data', {}).get('link', '').replace('http:', 'https:')
+            if url:
+                self.show_result(url)
+            else:
+                self.show_notification(
+                    u"Sorry, but Imgur service responded with unsupported answer. "
+                    u"Please, contact the developer of this program."
+                )
         except Exception as ex:
             self.log.error('Error: {}'.format(ex))
         if remove:
@@ -487,8 +493,14 @@ class Droplr(UploadBase):
         if not response.is_error():
             dict = response.get_data()
             try:
-                url = dict['shortlink']
-                self.show_result(url)
+                url = dict.get('shortlink', '').replace('http:', 'https:')
+                if url:
+                    self.show_result(url)
+                else:
+                    self.show_notification(
+                        u"Sorry, but Droplr service responded with unsupported answer. "
+                        u"Please, contact the developer of this program."
+                    )
             except Exception as ex:
                 self.log.error('Error: {}'.format(ex))
         if remove:
