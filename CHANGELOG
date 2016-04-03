@@ -1,3 +1,8 @@
+v0.5.6
+  Fixes:
+  - Use SSL for image URLs
+
+
 v0.5.5.1
   Fixes:
   - Tool producing same screenshots on Ubuntu 15.04 (with gtk-3.14)
