@@ -5,7 +5,8 @@ purpose is to share images over the Internet using on-line services.
 By now [Imgur](http://imgur.com) and [Droplr](http://droplr.com) services are
 supported.
 
-###Fileshare applet features:  
+### Fileshare applet features
+
 - drag'n'drop image files to 'File Grabber' to upload
 - select screen area to grab, show preview and upload
 - link to the result image is automatically stored in the buffer, just paste to share the link
@@ -13,11 +14,11 @@ supported.
   (note, that to use Droplr account you'll need to request application keys from the developers,
   see [http://help.droplr.com/customer/portal/articles/1014091-introduction](http://help.droplr.com/customer/portal/articles/1014091-introduction) for more details)
 
-###For Linux users
+### For Linux users
 There're two options for you.
-####Use precompiled package
+#### Use precompiled package
 Download and install latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.  
-####Create a package yourself
+#### Create a package yourself
 1. Install Docker and run:  
 ```bash
 ./ci/build.sh
@@ -28,12 +29,12 @@ this will create deb package
 # dpkg -i <deb file>
 ```
 
-###For Windows users:  
+### For Windows users:  
 1. Download and run PyGTK all-in-one installer:  
    [http://www.pygtk.org/downloads.html](http://www.pygtk.org/downloads.html)
 2. Run fileshare-setup.exe
 
-###Custom keyboard shortcut  
+### Custom keyboard shortcut  
 Please, note, that not all systems support hotkeys. To check whether your system supports them, open Python console and type:  
 ```bash
 from gi.repository import Keybinder
@@ -58,7 +59,7 @@ and change "\<Super>P" to the desired shortcut.
 You may use the following modifiers: \<Alt>, \<Ctrl>, \<Shift>, \<Super>
 
 
-###Special thanks to:  
+### Special thanks to:  
 - Droplr developers for idea
 - Weather Indicator Team for first steps in Unity Python toolbar application development
 - VladX, Nanoshot developer for many great PyGTK examples
