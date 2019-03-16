@@ -15,18 +15,15 @@ supported.
   see [http://help.droplr.com/customer/portal/articles/1014091-introduction](http://help.droplr.com/customer/portal/articles/1014091-introduction) for more details)
 
 ### For Linux users
-There're two options for you.
-#### Use precompiled package
-Download and install latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.  
-#### Create a package yourself
-1. Install Docker and run:  
-```bash
-./ci/build.sh
-```  
-this will create deb package  
+1. Download and latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.
+   Or build a package yourself if you want (requires Docker):
+   ```bash
+   ./ci/build.sh
+   ```
+   this will create deb package in `dist` folder.
 2. Install it with command:  
 ```bash
-# dpkg -i <deb file>
+# apt-get install <path to deb file>
 ```
 
 ### For Windows users:  
