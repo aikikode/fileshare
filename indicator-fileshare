@@ -51,11 +51,12 @@ if APP_DIR not in sys.path:
 from upload_services import Imgur, Droplr
 from grabbers import FileGrabber, ScreenGrabber
 
-DEFAULT_SERVICE_NAME = Imgur.__name__  # Choose Imgur because it allows anonymous uploads
+# Choose Imgur because it allows anonymous uploads
+DEFAULT_SERVICE_NAME = Imgur.__name__
 
 GObject.threads_init()
 
-VERSION = '0.5.6'
+VERSION = '0.5.7'
 
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')

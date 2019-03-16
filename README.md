@@ -13,12 +13,14 @@ supported.
   (note, that to use Droplr account you'll need to request application keys from the developers,
   see [http://help.droplr.com/customer/portal/articles/1014091-introduction](http://help.droplr.com/customer/portal/articles/1014091-introduction) for more details)
 
-###For Linux users:  
-Download latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.  
-or create a package yourself:  
-1. Run  
+###For Linux users
+There're two options for you.
+####Use precompiled package
+Download and install latest DEB package from [releases](https://github.com/aikikode/fileshare/releases) page.  
+####Create a package yourself
+1. Install Docker and run:  
 ```bash
-./build_deb.sh  
+./ci/build.sh
 ```  
 this will create deb package  
 2. Install it with command:  

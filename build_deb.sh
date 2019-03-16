@@ -11,27 +11,28 @@
 #===============================================================================
 
 BUILDDIR="build"
+OUTPUTDIR="dist"
 APPNAME="indicator-fileshare"
-VERSION=$(egrep "^VERSION =" ./$APPNAME | egrep -o "[0-9\.]+")
+VERSION=$(egrep "^VERSION =" ./${APPNAME} | egrep -o "[0-9\.]+")
 
-mkdir -p $BUILDDIR
-if [ -d $BUILDDIR ]
+mkdir -p ${BUILDDIR} ${OUTPUTDIR}
+if [[ -d ${BUILDDIR} ]]
 then
-    rm -fr $BUILDDIR/*
-    mkdir -p $BUILDDIR/usr/local/bin
-    mkdir -p $BUILDDIR/usr/local/share/$APPNAME/media
-    mkdir -p $BUILDDIR/usr/share/applications
-    mkdir -p $BUILDDIR/usr/share/doc/$APPNAME
+    rm -fr ${BUILDDIR}/*
+    mkdir -p ${BUILDDIR}/usr/local/bin
+    mkdir -p ${BUILDDIR}/usr/local/share/${APPNAME}/media
+    mkdir -p ${BUILDDIR}/usr/share/applications
+    mkdir -p ${BUILDDIR}/usr/share/doc/${APPNAME}
 
-    cp $APPNAME          $BUILDDIR/usr/local/bin/
-    cp ./icons/*.png     $BUILDDIR/usr/local/share/$APPNAME/media/
-    cp ./*.py            $BUILDDIR/usr/local/share/$APPNAME/
-    cp $APPNAME.desktop  $BUILDDIR/usr/share/applications/
-    cp ./AUTHORS         $BUILDDIR/usr/share/doc/$APPNAME/
-    cp -r ./DEBIAN       $BUILDDIR/
+    cp ${APPNAME}          ${BUILDDIR}/usr/local/bin/
+    cp ./icons/*.png     ${BUILDDIR}/usr/local/share/${APPNAME}/media/
+    cp ./*.py            ${BUILDDIR}/usr/local/share/${APPNAME}/
+    cp ${APPNAME}.desktop  ${BUILDDIR}/usr/share/applications/
+    cp ./AUTHORS         ${BUILDDIR}/usr/share/doc/${APPNAME}/
+    cp -r ./DEBIAN       ${BUILDDIR}/
 
-    fakeroot dpkg-deb --build $BUILDDIR indicator-fileshare-$VERSION.deb
-    rm -fr $BUILDDIR
+    fakeroot dpkg-deb --build ${BUILDDIR} ${OUTPUTDIR}/indicator-fileshare-${VERSION}.deb
+    rm -fr ${BUILDDIR}
 else
-    echo "Error: cannot create directory $BUILDDIR"
+    echo "Error: cannot create directory ${BUILDDIR}"
 fi
