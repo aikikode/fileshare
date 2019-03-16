@@ -26,15 +26,7 @@
 
 __author__ = 'aikikode'
 
-
-from gi.repository import Gtk
-from gi.repository import Gdk
-from gi.repository import GObject
-from gi.repository import Notify
-
 import ConfigParser
-
-from abc import ABCMeta, abstractmethod
 import base64
 import hashlib
 import hmac
@@ -47,6 +39,11 @@ import time
 import urllib
 import urllib2
 import webbrowser
+from abc import ABCMeta, abstractmethod
+from gi.repository import GObject
+from gi.repository import Gdk
+from gi.repository import Gtk
+from gi.repository import Notify
 
 
 class UploadBase(threading.Thread):
@@ -135,13 +132,12 @@ class Imgur(UploadBase):
             if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
-                body = dict(
+                req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(dict(
                     client_id=self._client_id,
                     client_secret=self._client_secret,
                     grant_type='pin',
                     pin=pin
-                )
-                req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
+                )))
                 for line in urllib2.urlopen(req):
                     self.response = line
                 resp = json.loads(self.response)
@@ -210,13 +206,12 @@ class Imgur(UploadBase):
 
     def refresh_access_token(self):
         if self._refresh_token:
-            body = dict(
+            req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(dict(
                 client_id=self._client_id,
                 refresh_token=self._refresh_token,
                 client_secret=self._client_secret,
                 grant_type='refresh_token'
-            )
-            req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(body))
+            )))
             for line in urllib2.urlopen(req):
                 self.response = line
             self.log.debug('Response: {}'.format(self.response))
@@ -230,11 +225,9 @@ class Imgur(UploadBase):
             else:
                 self.logout()
                 # Inform the user that we have logged out
-                dialog = Gtk.MessageDialog(parent=None,
-                                           flags=0,
-                                           type=Gtk.MESSAGE_WARNING,
-                                           buttons=Gtk.BUTTONS_OK,
-                                           message_format=None)
+                dialog = Gtk.MessageDialog(
+                    parent=None, flags=0, type=Gtk.MESSAGE_WARNING, buttons=Gtk.BUTTONS_OK, message_format=None
+                )
                 dialog.set_title('fileshare')
                 dialog.set_markup('Authentication failed!')
                 dialog.format_secondary_text(
@@ -255,14 +248,14 @@ class Imgur(UploadBase):
 
         self.log.debug('Uploading file: {}'.format(image))
         self.response = ''
-        self.base64String = img2base64(image)
+        base64_string = img2base64(image)
         if self._access_token:
-            header = {'Authorization': 'Bearer {}'.format(self._access_token)}
+            auth_id = 'Bearer {}'.format(self._access_token)
         else:
             # Anonymous upload
-            header = {'Authorization': 'Client-ID {}'.format(self._client_id)}
-        body = dict(image=self.base64String)
-        req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(body), header)
+            auth_id = 'Client-ID {}'.format(self._client_id)
+        header = {'Authorization': auth_id, }
+        req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(dict(image=base64_string)), header)
         try:
             for line in urllib2.urlopen(req):
                 self.response = line
@@ -278,8 +271,14 @@ class Imgur(UploadBase):
                     return self.upload_callback(image, remove, call_prepare=False)
         try:
             resp_dict = json.loads(self.response)
-            url = resp_dict['data']['link']
-            self.show_result(url)
+            url = resp_dict.get('data', {}).get('link', '').replace('http:', 'https:')
+            if url:
+                self.show_result(url)
+            else:
+                self.show_notification(
+                    u"Sorry, but Imgur service responded with unsupported answer. "
+                    u"Please, contact the developer of this program."
+                )
         except Exception as ex:
             self.log.error('Error: {}'.format(ex))
         if remove:
@@ -287,16 +286,6 @@ class Imgur(UploadBase):
                 os.remove(image)
             except OSError as ex:
                 self.log.debug('Error: {} - {}'.format(ex.filename, ex.strerror))
-
-        # TODO: remove after GTK3+ bug fixed
-        # Dirty hack! Due to a bug in GDK3+ all 2+ screenshots will be the same. Have to restart the application.
-        import sys
-        import tempfile
-        import getpass
-        temp_path = os.path.join(tempfile.gettempdir(), 'indicator-fileshare-{}.pid'.format(getpass.getuser()))
-        os.unlink(temp_path)
-        self.app.quit()
-        os.execl(sys.executable, sys.executable, *sys.argv)
 
         return False  # return False not to be called again as callback
 
@@ -310,7 +299,6 @@ class Imgur(UploadBase):
 
     def refresh_access(self):
         self.refresh_access_token()
-#class Imgur()
 
 
 class Droplr(UploadBase):
@@ -487,8 +475,14 @@ class Droplr(UploadBase):
         if not response.is_error():
             dict = response.get_data()
             try:
-                url = dict['shortlink']
-                self.show_result(url)
+                url = dict.get('shortlink', '').replace('http:', 'https:')
+                if url:
+                    self.show_result(url)
+                else:
+                    self.show_notification(
+                        u"Sorry, but Droplr service responded with unsupported answer. "
+                        u"Please, contact the developer of this program."
+                    )
             except Exception as ex:
                 self.log.error('Error: {}'.format(ex))
         if remove:
@@ -520,4 +514,3 @@ class Droplr(UploadBase):
 
         def get_data(self):
             return self.dict if not self.is_error() else None
-#class Droplr()

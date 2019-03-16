@@ -26,26 +26,23 @@
 
 __author__ = 'aikikode'
 
-
-from gi.repository import AppIndicator3 as appindicator
-from gi.repository import Gtk
-from gi.repository import GObject
-from gi.repository import GdkPixbuf
-
 import ConfigParser
-
-import errno
 import commands
+import errno
 import getpass
 import logging
 import logging.handlers
 import os
+import shutil
 import stat
 import sys
-import shutil
 import tempfile
 import threading
 import webbrowser
+from gi.repository import AppIndicator3 as appindicator
+from gi.repository import GObject
+from gi.repository import GdkPixbuf
+from gi.repository import Gtk
 
 APP_DIR = '/usr/local/share/indicator-fileshare'
 if APP_DIR not in sys.path:
@@ -54,11 +51,12 @@ if APP_DIR not in sys.path:
 from upload_services import Imgur, Droplr
 from grabbers import FileGrabber, ScreenGrabber
 
-DEFAULT_SERVICE_NAME = Imgur.__name__  # Choose Imgur because it allows anonymous uploads
+# Choose Imgur because it allows anonymous uploads
+DEFAULT_SERVICE_NAME = Imgur.__name__
 
 GObject.threads_init()
 
-VERSION = '0.5.5.1'
+VERSION = '0.5.7'
 
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')
@@ -67,7 +65,6 @@ if not os.path.isdir(CONFIG_DIR):
     os.mkdir(CONFIG_DIR)
 
 
-##############################################################################
 class SingleInstance(object):
     """ Class to ensure, that single instance of the applet is run for each user """
 
@@ -98,7 +95,6 @@ class SingleInstance(object):
                 log.error(
                     "SingleInstance: exception while renaming '{}' to '{}':\n {}".format(temp_path, pidPath, str(e))
                 )
-    #def __init__(self, pidPath)
 
     def is_already_running(self):
         return self.lasterror
@@ -107,10 +103,8 @@ class SingleInstance(object):
         if not self.lasterror:
             log.debug('SingleInstance: deleting {}'.format(self.pidPath))
             os.unlink(self.pidPath)
-#class SingleInstance(object)
 
 
-##############################################################################
 class IndicatorFileshare(threading.Thread):
     def __init__(self):
         log.debug('Indicator: creating')
@@ -312,15 +306,12 @@ class IndicatorFileshare(threading.Thread):
     def grab_screen_area(self, widget):
         ScreenGrabber(self.service.upload_callback, self.quit, log)
 
-    ##########################################################################
     def open_site(self, widget):
         webbrowser.open(self.service.get_site_url())
 
-    ##########################################################################
     def toggle_file_grabber(self, widget):
         self.file_grabber.toggle_window()
 
-    ##########################################################################
     def about(self, widget):
         log.debug('Indicator: open About dialog')
         self.about_dialog = Gtk.AboutDialog()
@@ -335,22 +326,18 @@ class IndicatorFileshare(threading.Thread):
         self.about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file(self.app_icon))
         self.about_dialog.connect('response', self.about_close)
         self.about_dialog.show()
-    #def about(self, widget)
 
     def about_close(self, widget, event=None):
         log.debug('Indicator: closing About dialog')
         self.about_dialog.destroy()
 
-    ##########################################################################
     # Quit the applet
     def quit(self, widget=None, data=None):
         self.save_settings()
         log.debug('Indicator: Quitting')
         Gtk.main_quit()
-#class IndicatorFileshare(threading.Thread)
 
 
-##############################################################################
 def main():
     Gtk.main()
     return 0

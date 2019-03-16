@@ -27,22 +27,20 @@
 
 __author__ = 'aikikode'
 
-
-from gi.repository import Gtk
-from gi.repository import Gdk
-from gi.repository import GObject
-from gi.repository import GdkPixbuf
-
 import cairo
 import os
 import re
 import tempfile
 import threading
+from gi.repository import GObject
+from gi.repository import Gdk
+from gi.repository import GdkPixbuf
+from gi.repository import Gtk
 
 FILE_GRABBER_SIZE = 50
 
 
-class FileGrabber():
+class FileGrabber:
     """ Applet for drag'n'drop files to. The file is automatically uploaded to
         the hosting and the result URL is copied into the clipboard """
 
@@ -100,10 +98,8 @@ class FileGrabber():
         file_to_upload = re.sub(r'/([^/]+:/)', r'\1/', file_to_upload)   # handle Win path
         context.finish(True, False, time)
         GObject.idle_add(self.upload_callback, file_to_upload, False)
-#class FileGrabber()
 
 
-##############################################################################
 class ScreenGrabber(threading.Thread):
     def __init__(self, upload_callback, quit_callback, log):
         threading.Thread.__init__(self)
@@ -186,15 +182,6 @@ class ScreenGrabber(threading.Thread):
         def response(dialog, resp_id):
             if resp_id == Gtk.ResponseType.OK:
                 self.upload_from_pixmap()
-            else:
-                # TODO: remove after GTK3+ bug fixed
-                # Dirty hack! Due to a bug in GDK3+ all 2+ screenshots will be the same. Have to restart the application.
-                import sys
-                import getpass
-                temp_path = os.path.join(tempfile.gettempdir(), 'indicator-fileshare-{}.pid'.format(getpass.getuser()))
-                os.unlink(temp_path)
-                self.quit_callback()
-                os.execl(sys.executable, sys.executable, *sys.argv)
 
         image = self.gtk_screen_image
         preview_dialog = Gtk.Dialog(
@@ -235,14 +222,14 @@ class ScreenGrabber(threading.Thread):
         self.clear(ctx)
         # Give cairo some time to clear the screen before the destruction of the window
         GObject.timeout_add(50, self.drawingWindow.destroy)
-        if self.selected and hasattr(self, 'completeHandler'):
+        if self.selected and hasattr(self, 'complete_handler'):
             x = int(round(min(self.selection_x_start, self.selection_x_end)))
             y = int(round(min(self.selection_y_start, self.selection_y_end)))
             width = int(round(abs(self.selection_x_end - self.selection_x_start)))
             height = int(round(abs(self.selection_y_end - self.selection_y_start)))
             # Do not take screen shot if grabbed area is too small
             if width > 10 and height > 10:
-                GObject.timeout_add(150, self.completeHandler, x, y, width, height)
+                GObject.timeout_add(150, self.complete_handler, x, y, width, height)
             else:
                 self.log.debug('ScreenGrabber: selected area is too small')
         self.deleted = True
@@ -309,6 +296,5 @@ class ScreenGrabber(threading.Thread):
         ctx.set_source_rgba(0.0, 0.0, 0.0, 0.5)
         ctx.paint()
 
-    def set_complete_handler(self, completeHandler):
-        self.completeHandler = completeHandler
-#class ScreenGrabber(threading.Thread)
+    def set_complete_handler(self, complete_handler):
+        self.complete_handler = complete_handler
