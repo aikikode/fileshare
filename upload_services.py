@@ -1,32 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-#
-# Copyright 2012
-#
-# Authors: Denis Kovalev <aikikode@gmail.com>
-#
-# This program is free software: you can redistribute it and/or modify it
-# under the terms of either or both of the following licenses:
-#
-# 1) the GNU Lesser General Public License version 3, as published by the
-# Free Software Foundation; and/or
-# 2) the GNU Lesser General Public License version 2.1, as published by
-# the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranties of
-# MERCHANTABILITY, SATISFACTORY QUALITY or FITNESS FOR A PARTICULAR
-# PURPOSE.  See the applicable version of the GNU Lesser General Public
-# License for more details.
-#
-# You should have received a copy of both the GNU Lesser General Public
-# License version 3 and version 2.1 along with this program.  If not, see
-# <http://www.gnu.org/licenses>
-#
-
-__author__ = 'aikikode'
-
-import ConfigParser
 import base64
 import hashlib
 import hmac
@@ -36,14 +7,16 @@ import os
 import stat
 import threading
 import time
-import urllib
-import urllib2
+import urllib.parse
 import webbrowser
 from abc import ABCMeta, abstractmethod
-from gi.repository import GObject
-from gi.repository import Gdk
-from gi.repository import Gtk
-from gi.repository import Notify
+from configparser import ConfigParser
+
+import gi
+import requests
+
+gi.require_version('Notify', '0.7')
+from gi.repository import GObject, Gdk, Gtk, Notify
 
 
 class UploadBase(threading.Thread):
@@ -93,7 +66,9 @@ class UploadBase(threading.Thread):
 
     def show_notification(self, message):
         Notify.init('Fileshare')
-        notify = Notify.Notification.new('Fileshare', message, self.app.app_icon)
+        notify = Notify.Notification.new(
+            'Fileshare', message, self.app.app_icon
+        )
         notify.show()
 
     def show_result(self, url):
@@ -105,7 +80,7 @@ class UploadBase(threading.Thread):
         # convert file name to utf-8
         file_to_upload = image.decode('UTF-8').encode('UTF-8')
         # convert %80%20 and other to cyrillic symbols and spaces
-        file_to_upload = urllib2.unquote(file_to_upload)
+        file_to_upload = urllib.parse.unquote(file_to_upload)
         return file_to_upload
 
 
@@ -132,13 +107,15 @@ class Imgur(UploadBase):
             if resp_id == Gtk.ResponseType.OK:
                 self.response = ''
                 pin = dialog.pin_entry.get_text()
-                req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(dict(
-                    client_id=self._client_id,
-                    client_secret=self._client_secret,
-                    grant_type='pin',
-                    pin=pin
-                )))
-                for line in urllib2.urlopen(req):
+                for line in requests.get(
+                    'https://api.imgur.com/oauth2/token',
+                    dict(
+                        client_id=self._client_id,
+                        client_secret=self._client_secret,
+                        grant_type='pin',
+                        pin=pin
+                    )
+                ).content:
                     self.response = line
                 resp = json.loads(self.response)
                 if 'access_token' in resp:
@@ -147,11 +124,7 @@ class Imgur(UploadBase):
                     self.refresh_access_token()  # is done to get username
                     self.show_notification('Successfully logged in to Imgur')
         # Open browser windows and prompt for access to Imgur account
-        webbrowser.open(
-            'https://api.imgur.com/oauth2/authorize?client_id={}&response_type=pin&state=APPLICATION_STATE'.format(
-                self._client_id
-            )
-        )
+        webbrowser.open('https://api.imgur.com/oauth2/authorize?client_id={}&response_type=pin&state=APPLICATION_STATE'.format(self._client_id))  # noqa
         # Window to enter PIN from the site
         pin_dialog = Gtk.Dialog(
             title='Fileshare Imgur Login',
@@ -188,7 +161,7 @@ class Imgur(UploadBase):
         return self._url
 
     def save_settings(self):
-        config = ConfigParser.RawConfigParser()
+        config = ConfigParser()
         try:
             if not config.has_section('IMGUR'):
                 config.add_section('IMGUR')
@@ -206,13 +179,15 @@ class Imgur(UploadBase):
 
     def refresh_access_token(self):
         if self._refresh_token:
-            req = urllib2.Request('https://api.imgur.com/oauth2/token', urllib.urlencode(dict(
-                client_id=self._client_id,
-                refresh_token=self._refresh_token,
-                client_secret=self._client_secret,
-                grant_type='refresh_token'
-            )))
-            for line in urllib2.urlopen(req):
+            for line in requests.get(
+                'https://api.imgur.com/oauth2/token',
+                dict(
+                    client_id=self._client_id,
+                    refresh_token=self._refresh_token,
+                    client_secret=self._client_secret,
+                    grant_type='refresh_token'
+                )
+            ):
                 self.response = line
             self.log.debug('Response: {}'.format(self.response))
             resp = json.loads(self.response)
@@ -226,12 +201,14 @@ class Imgur(UploadBase):
                 self.logout()
                 # Inform the user that we have logged out
                 dialog = Gtk.MessageDialog(
-                    parent=None, flags=0, type=Gtk.MESSAGE_WARNING, buttons=Gtk.BUTTONS_OK, message_format=None
+                    parent=None, flags=0, type=Gtk.MESSAGE_WARNING,
+                    buttons=Gtk.BUTTONS_OK, message_format=None
                 )
                 dialog.set_title('fileshare')
                 dialog.set_markup('Authentication failed!')
                 dialog.format_secondary_text(
-                    'Please, log in again. Otherwise your images will be uploaded anonymously.'
+                    'Please, log in again. '
+                    'Otherwise your images will be uploaded anonymously.'
                 )
                 dialog.run()
                 dialog.destroy()
@@ -255,29 +232,43 @@ class Imgur(UploadBase):
             # Anonymous upload
             auth_id = 'Client-ID {}'.format(self._client_id)
         header = {'Authorization': auth_id, }
-        req = urllib2.Request('https://api.imgur.com/3/image.json', urllib.urlencode(dict(image=base64_string)), header)
+        req = requests.Request(
+            method='GET', url='https://api.imgur.com/3/image.json',
+            headers=header, data=dict(image=base64_string)
+        )
+        req.prepare()
         try:
-            for line in urllib2.urlopen(req):
+            for line in requests.Session().send(req).content:
                 self.response = line
             self.log.debug('Response: {}'.format(self.response))
-            if self._access_token and json.loads(self.response)['status'] == 403:
+            if (
+                self._access_token
+                and json.loads(self.response)['status'] == 403
+            ):
                 raise Exception('Auth token expired')
         except Exception as ex:
             self.log.error('Error: {}'.format(ex))
             if str(ex).startswith('HTTP Error 400'):
-                self.show_notification("Sorry, but Fileshare couldn't upload the file of this type.")
+                self.show_notification(
+                    "Sorry, but Fileshare couldn't upload the file"
+                    " of this type."
+                )
             else:
                 if self._access_token and self.refresh_access_token():
-                    return self.upload_callback(image, remove, call_prepare=False)
+                    return self.upload_callback(
+                        image, remove, call_prepare=False
+                    )
         try:
             resp_dict = json.loads(self.response)
-            url = resp_dict.get('data', {}).get('link', '').replace('http:', 'https:')
+            url = resp_dict.get('data', {}).get('link', '').replace(
+                'http:', 'https:'
+            )
             if url:
                 self.show_result(url)
             else:
                 self.show_notification(
-                    u"Sorry, but Imgur service responded with unsupported answer. "
-                    u"Please, contact the developer of this program."
+                    u"Sorry, but Imgur service responded with unsupported "
+                    u"answer. Please, contact the developer of this program."
                 )
         except Exception as ex:
             self.log.error('Error: {}'.format(ex))
@@ -285,7 +276,9 @@ class Imgur(UploadBase):
             try:
                 os.remove(image)
             except OSError as ex:
-                self.log.debug('Error: {} - {}'.format(ex.filename, ex.strerror))
+                self.log.debug(
+                    'Error: {} - {}'.format(ex.filename, ex.strerror)
+                )
 
         return False  # return False not to be called again as callback
 
@@ -313,7 +306,9 @@ class Droplr(UploadBase):
         try:
             self._login = config.get('DROPLR', 'email')
             self._password_sha1 = config.get('DROPLR', 'password')
-            self._authorization_header = base64.b64encode('{}:{}'.format(self._public_key, self._login))
+            self._authorization_header = base64.b64encode(
+                '{}:{}'.format(self._public_key, self._login)
+            )
         except Exception as ex:
             self.log.error('Error: {}'.format(ex))
             self._login = ''
@@ -338,7 +333,9 @@ class Droplr(UploadBase):
                 self._login = email
                 self._password_sha1 = hashlib.sha1(password).hexdigest()
                 del password
-                self._authorization_header = base64.b64encode('{}:{}'.format(self._public_key, self._login))
+                self._authorization_header = base64.b64encode(
+                    '{}:{}'.format(self._public_key, self._login)
+                )
                 if not self.are_credentials_ok():
                     self.relogin()
         # Window to enter email and password
@@ -371,7 +368,9 @@ class Droplr(UploadBase):
             webbrowser.open('https://www.dropbox.com/forgot')
 
         forgot_password_button = Gtk.Button('Forgot password?')
-        forgot_password_button.connect('clicked', forgot_password_callback, None)
+        forgot_password_button.connect(
+            'clicked', forgot_password_callback, None
+        )
         forgot_password_button.props.relief = Gtk.RELIEF_NONE
         label = forgot_password_button.get_children()[0]
         label.modify_fg(Gtk.STATE_NORMAL, Gdk.color_parse('red'))
@@ -402,7 +401,7 @@ class Droplr(UploadBase):
         return self._url
 
     def save_settings(self):
-        config = ConfigParser.RawConfigParser()
+        config = ConfigParser()
         try:
             if not config.has_section('DROPLR'):
                 config.add_section('DROPLR')
@@ -420,36 +419,41 @@ class Droplr(UploadBase):
         return config
 
     def create_signature(self, string_to_sign):
-        return base64.b64encode(
-            hmac.new('{}:{}'.format(self._private_key, self._password_sha1), string_to_sign, hashlib.sha1).digest())
+        return base64.b64encode(hmac.new('{}:{}'.format(
+            self._private_key, self._password_sha1), string_to_sign,
+            hashlib.sha1
+        ).digest())
 
     def perform_request(self, method, uri, date, content_type, data, params):
         self.response = ''
-        string_to_sign = "{} /{}.json HTTP/1.1\n{}\n{}".format(method, uri, content_type, date)
+        string_to_sign = "{} /{}.json HTTP/1.1\n{}\n{}".format(
+            method, uri, content_type, date
+        )
         signature = self.create_signature(string_to_sign)
 
         url = '{}/{}.json'.format(self.api_url, uri)
         if params:
             url += '?{}'.format(urllib.urlencode(params))
         headers = {}
-        headers['Authorization'] = 'droplr {}:{}'.format(self._authorization_header, signature)
+        headers['Authorization'] = 'droplr {}:{}'.format(
+            self._authorization_header, signature
+        )
         headers['Date'] = date
         if data:
             headers['Content-Length'] = len(data)
         if content_type:
             headers['Content-Type'] = content_type
 
-        req = urllib2.Request(url, headers=headers)
-        if data:
-            req.add_data(urllib.urlencode(data))
-        for line in urllib2.urlopen(req):
+        for line in requests.get(url, data, headers=headers).content:
             self.response = line
         self.log.debug('Response: {}'.format(self.response))
         return Droplr.DroplrResponse(self.response)
 
     def are_credentials_ok(self):
         try:
-            response = self.perform_request('GET', 'account', str(int(time.time())), None, None, None)
+            response = self.perform_request(
+                'GET', 'account', str(int(time.time())), None, None, None
+            )
             return not response.is_error()
         except:
             return False
@@ -471,7 +475,9 @@ class Droplr(UploadBase):
             content_type = 'application/octet-stream'
 
         date = str(int(time.time()))
-        response = self.perform_request('POST', 'files', date, content_type, data, params)
+        response = self.perform_request(
+            'POST', 'files', date, content_type, data, params
+        )
         if not response.is_error():
             dict = response.get_data()
             try:
@@ -480,8 +486,9 @@ class Droplr(UploadBase):
                     self.show_result(url)
                 else:
                     self.show_notification(
-                        u"Sorry, but Droplr service responded with unsupported answer. "
-                        u"Please, contact the developer of this program."
+                        u"Sorry, but Droplr service responded with unsupported"
+                        u" answer. Please, contact the developer of this"
+                        u" program."
                     )
             except Exception as ex:
                 self.log.error('Error: {}'.format(ex))

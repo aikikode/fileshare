@@ -2,8 +2,7 @@ Fileshare Applet
 ================
 Fileshare applet development is inspired mostly by Droplr windows client. Its
 purpose is to share images over the Internet using on-line services.  
-By now [Imgur](http://imgur.com) and [Droplr](http://droplr.com) services are
-supported.
+By now [Imgur](http://imgur.com) service is supported.
 
 ### Fileshare applet features
 
@@ -21,7 +20,7 @@ supported.
    ./ci/build.sh
    ```
    this will create deb package in `dist` folder.
-2. Install it with command:  
+2. Install it with the command:  
 ```bash
 # apt-get install <path to deb file>
 ```
