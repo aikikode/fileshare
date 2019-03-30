@@ -1,3 +1,7 @@
+v0.6.1
+  Fixes:
+  - Fix pid file
+
 v0.6.0
   - Switch to Python3
 

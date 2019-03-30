@@ -34,7 +34,7 @@ DEFAULT_SERVICE_NAME = Imgur.__name__
 
 GObject.threads_init()
 
-VERSION = '0.6.0'
+VERSION = '0.6.1'
 
 CONFIG_DIR = os.path.join(os.path.expanduser('~'), '.fileshare')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'settings.cfg')
@@ -71,13 +71,13 @@ class SingleInstance:
             # Create a temp file, copy it to pid_path and remove temporary file
             (fp, temp_path) = tempfile.mkstemp()
             try:
-                os.fdopen(fp, 'w+b').write(str(os.getpid()))
+                os.fdopen(fp, 'w+').write(str(os.getpid()))
                 shutil.copy(temp_path, pid_path)
                 os.unlink(temp_path)
-            except Exception as e:
+            except Exception as ex:
                 log.error(
                     "SingleInstance: exception while renaming '{}' to '{}':\n"
-                    " {}".format(temp_path, pid_path, str(e))
+                    " {}".format(temp_path, pid_path, str(ex))
                 )
 
     def is_already_running(self):
